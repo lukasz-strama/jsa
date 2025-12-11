@@ -39,7 +39,6 @@ Architektura oparta na przerwaniach (Interrupt-Driven), aby nie blokować proces
 2.  **UART Transmitter:**
     * Wykorzystanie bufora kołowego (Ring Buffer) o rozmiarze np. 64 bajtów.
     * Przerwanie `UDRE_vect` (Data Register Empty) wypycha dane z bufora do rejestru `UDR0`.
-    * To kluczowe, aby próbkowanie ADC nie czekało na wysłanie danych przez wolny UART.
 
 ---
 
