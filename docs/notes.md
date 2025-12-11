@@ -128,15 +128,10 @@ Aby uniknąć zamrażania interfejsu, system musi używać minimum dwóch wątk�
 
 -----
 
-## 6\. Stack Technologiczny
+## 6\. Stack
 
   * **Język:** Java 21 (LTS) lub nowsza (wykorzystanie `records` do DTO).
   * **Build System:** Maven
   * **GUI Framework:** JavaFX (moduły: `javafx-controls`, `javafx-fxml`).
   * **Komunikacja:** `com.fazecast:jSerialComm`
   * **Matematyka:** `JTransforms` (Dla FFT - Double Precision Fourier Transforms).
-
-## 7\. Wskazówki do implementacji
-
-2.  **Synchronizacja:** Dostęp do kolejki danych musi byc thread-safe. `ArrayBlockingQueue` jest do tego idealna.
-3.  **Separacja:** Klasa odpowiedzialna za FFT nie powinna wiedzieć, że istnieje jakiś przycisk w UI. Klasa od UART nie powinna wiedzieć, że dane będą rysowane. Łącz je tylko w Kontrolerze.
