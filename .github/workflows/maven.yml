@@ -18,7 +18,7 @@ jobs:
       with:
         java-version: '21'
         distribution: 'temurin'
-        cache:maven: true
+        cache: 'maven'
 
     - name: Build with Maven (Software)
       run: mvn -B clean verify --file software/pom.xml
