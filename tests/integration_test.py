@@ -1,10 +1,42 @@
 import unittest
 import serial
+import serial.tools.list_ports
 import time
 import sys
 
+def find_arduino_port():
+    """
+    Auto-detects the serial port of the Arduino.
+    Returns the port name (e.g., '/dev/ttyACM0' or 'COM3').
+    Raises Exception if not found.
+    """
+    ports = list(serial.tools.list_ports.comports())
+    for p in ports:
+        # Check for common Arduino identifiers in the description or manufacturer
+        # Note: "USB Serial" is common for CH340 clones
+        if "Arduino" in p.description or "CH340" in p.description or "USB Serial" in p.description or "ACM" in p.device:
+            print(f"Auto-detected Arduino on port: {p.device} ({p.description})")
+            return p.device
+    
+    # Fallback/Error
+    print("Available ports:")
+    for p in ports:
+        print(f" - {p.device}: {p.description}")
+    raise Exception("Could not find Arduino. Please specify port manually using --port")
+
 # Default configuration
-SERIAL_PORT = '/dev/ttyACM0'
+# If --port is not passed, try to auto-detect
+if '--port' not in sys.argv:
+    try:
+        SERIAL_PORT = find_arduino_port()
+    except Exception as e:
+        print(e)
+        # Fallback to a default if detection fails, but likely won't work
+        SERIAL_PORT = '/dev/ttyACM0' 
+else:
+    # Placeholder, will be overwritten in __main__ block
+    SERIAL_PORT = '' 
+
 BAUD_RATE = 115200
 
 class TestFirmwareProtocol(unittest.TestCase):
