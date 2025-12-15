@@ -1,27 +1,36 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/wdt.h>
+#include <util/delay.h>
 #include "uart.h"
 #include "adc.h"
 #include "timer.h"
+#include "gpio.h"
 
 // Command Definitions
 #define CMD_START       0x01
 #define CMD_STOP        0x02
 #define CMD_RATE_1KHZ   0x10
 #define CMD_RATE_10KHZ  0x11
+#define CMD_ID          0x3F // '?'
 
 int main(void) {
-    // Initialize all modules
+    // Startup Delay to prevent WDT reset loops if power is unstable
+    _delay_ms(50);
+
+    GPIO_InitSafe();
     UART_Init();
     ADC_Init();
     Timer1_Init();
 
-    // Enable Global Interrupts
+    // Enable Watchdog Timer (2 Seconds) to protect against hangs
+    wdt_enable(WDTO_2S);
+
     sei();
 
-    // Main Loop
     while (1) {
-        // Check for incoming commands from PC
+        wdt_reset();
+
         if (UART_IsDataAvailable()) {
             uint8_t cmd = UART_ReceiveByte();
 
@@ -41,9 +50,24 @@ int main(void) {
                 case CMD_RATE_10KHZ:
                     Timer1_SetFrequency(SAMPLE_RATE_10KHZ);
                     break;
+
+                case CMD_ID:
+                    {
+                        // Send ID string and calculate XOR checksum for integrity verification
+                        const char* id_str = "OSC_V1\n";
+                        uint8_t checksum = 0;
+                        const char* p = id_str;
+                        while (*p) {
+                            UART_SendByte(*p);
+                            checksum ^= *p;
+                            p++;
+                        }
+                        UART_SendByte(checksum);
+                    }
+                    break;
                 
                 default:
-                    // Ignore unknown commands
+                    // Ignore unknown commands to prevent undefined behavior
                     break;
             }
         }
