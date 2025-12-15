@@ -37,7 +37,7 @@ else:
     # Placeholder, will be overwritten in __main__ block
     SERIAL_PORT = '' 
 
-BAUD_RATE = 115200
+BAUD_RATE = 2000000
 
 class TestFirmwareProtocol(unittest.TestCase):
     """
@@ -275,6 +275,30 @@ class TestFirmwareProtocol(unittest.TestCase):
         
         self.assertEqual(len(data), 0, f"Received data after STOP: {data.hex()}")
         print("PASS: Device stopped transmission.")
+
+    def test_turbo_mode_20khz(self):
+        """
+        Test 4: Verify 20kHz Turbo Mode.
+        """
+        print("\n[Test] Turbo Mode (20kHz)")
+        
+        # Set Rate to 20kHz
+        self.ser.write(b'\x12')
+        time.sleep(0.1)
+        
+        # Start
+        self.ser.write(b'\x01')
+        
+        # Read data
+        # At 20kHz, we get ~40000 bytes/sec.
+        # Read for 0.1s -> ~4000 bytes
+        data = self.ser.read(4000)
+        
+        self.assertGreater(len(data), 100, "Insufficient data received in Turbo Mode.")
+        print(f"Received {len(data)} bytes in ~0.1s (Expected ~4000)")
+        
+        # Stop
+        self.ser.write(b'\x02')
 
 if __name__ == '__main__':
     # Parse custom arguments

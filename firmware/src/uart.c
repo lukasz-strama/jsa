@@ -3,10 +3,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define BAUD 115200
-#define F_CPU 16000000UL
-#define UBRR_VALUE ((F_CPU/8/BAUD)-1)
-
 // Ring Buffer Configuration
 #define TX_BUFFER_SIZE 256
 #define TX_BUFFER_MASK (TX_BUFFER_SIZE - 1)
@@ -16,10 +12,15 @@ volatile uint8_t tx_head = 0;
 volatile uint8_t tx_tail = 0;
 
 void UART_Init(void) {
-    UBRR0H = (uint8_t)(UBRR_VALUE >> 8);
-    UBRR0L = (uint8_t)UBRR_VALUE;
+    // Configure for 2 Mbps (2,000,000 baud)
+    // F_CPU = 16MHz
+    // Formula: Baud = F_CPU / (8 * (UBRR + 1))
+    // 2,000,000 = 16,000,000 / (8 * (0 + 1)) -> Exact match with UBRR=0
+    
+    UBRR0H = 0;
+    UBRR0L = 0;
 
-    // Enable Double Speed Mode (U2X0) for better baud rate accuracy at 115200
+    // Enable Double Speed Mode (U2X0) is REQUIRED for 2Mbps
     UCSR0A |= (1 << U2X0);
 
     // Enable Receiver and Transmitter

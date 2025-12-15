@@ -3,9 +3,11 @@
 
 #include <stdint.h>
 
+#define UART_BAUD 2000000
+
 /**
  * @brief Initialize UART module
- * Baud Rate: 115200
+ * Baud Rate: 2,000,000 (2 Mbps)
  * Format: 8N1
  */
 void UART_Init(void);

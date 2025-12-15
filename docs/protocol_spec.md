@@ -1,11 +1,12 @@
 # Protocol Specification (UART)
 
 ## 1. Transmission Settings
-* **Baud Rate:** 115200 bps
+* **Baud Rate:** 2,000,000 bps (2 Mbps)
 * **Data Bits:** 8
 * **Parity:** None
 * **Stop Bits:** 1
 * **Flow Control:** None
+* **Note:** Requires Double Speed Mode (U2X0 = 1) on ATmega328P.
 
 ## 2. Command Set
 The host (PC) controls the device by sending single-byte commands.
@@ -16,6 +17,7 @@ The host (PC) controls the device by sending single-byte commands.
 | **STOP** | `0x02` | - | Stops the sampling timer. |
 | **RATE_1KHZ** | `0x10` | - | Sets sampling rate to 1 kHz (Default). |
 | **RATE_10KHZ** | `0x11` | - | Sets sampling rate to 10 kHz. |
+| **RATE_20KHZ** | `0x12` | - | Sets sampling rate to 20 kHz (Turbo Mode). Reduced impedance tolerance. |
 | **HANDSHAKE** | `0x3F` | `?` | Requests device identification and integrity check. |
 
 ### Handshake Response

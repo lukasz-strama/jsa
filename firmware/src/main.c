@@ -12,6 +12,7 @@
 #define CMD_STOP        0x02
 #define CMD_RATE_1KHZ   0x10
 #define CMD_RATE_10KHZ  0x11
+#define CMD_RATE_20KHZ  0x12
 #define CMD_ID          0x3F // '?'
 
 int main(void) {
@@ -49,6 +50,10 @@ int main(void) {
                 
                 case CMD_RATE_10KHZ:
                     Timer1_SetFrequency(SAMPLE_RATE_10KHZ);
+                    break;
+
+                case CMD_RATE_20KHZ:
+                    Timer1_SetFrequency(SAMPLE_RATE_20KHZ);
                     break;
 
                 case CMD_ID:

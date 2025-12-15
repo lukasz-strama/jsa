@@ -7,9 +7,9 @@ void ADC_Init(void) {
     // AVCC with external capacitor at AREF pin
     ADMUX = (1 << REFS0);
 
-    // Enable ADC, Interrupt, and Prescaler 64
-    // 16MHz / 64 = 250kHz ADC Clock -> ~52us conversion time
-    ADCSRA = (1 << ADEN) | (1 << ADIE) | (1 << ADPS2) | (1 << ADPS1);
+    // Enable ADC, Interrupt, and Prescaler 32
+    // 16MHz / 32 = 500kHz ADC Clock -> ~26us conversion time
+    ADCSRA = (1 << ADEN) | (1 << ADIE) | (1 << ADPS2) | (1 << ADPS0);
 }
 
 void ADC_StartConversion(void) {

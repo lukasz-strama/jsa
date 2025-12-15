@@ -5,7 +5,8 @@
 
 typedef enum {
     SAMPLE_RATE_1KHZ,
-    SAMPLE_RATE_10KHZ
+    SAMPLE_RATE_10KHZ,
+    SAMPLE_RATE_20KHZ
 } SampleRate;
 
 /**
