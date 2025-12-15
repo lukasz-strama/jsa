@@ -2,7 +2,21 @@ MCU = atmega328p
 F_CPU = 16000000UL
 BAUD = 115200
 PROGRAMMER = arduino
-PORT = /dev/ttyACM0
+
+# OS Detection and Platform Specific Settings
+ifeq ($(OS),Windows_NT)
+    # Windows Settings
+    RM = del /Q
+    FixPath = $(subst /,\,$(1))
+    PORT ?= COM3
+    EXT = .exe
+else
+    # Linux/Unix Settings
+    RM = rm -f
+    FixPath = $(1)
+    PORT ?= /dev/ttyACM0
+    EXT = 
+endif
 
 CC = avr-gcc
 OBJCOPY = avr-objcopy
@@ -29,6 +43,6 @@ flash: $(TARGET).hex
 	$(AVRDUDE) -F -V -c $(PROGRAMMER) -p $(MCU) -P $(PORT) -b 115200 -U flash:w:$(TARGET).hex
 
 clean:
-	rm -f src/*.o $(TARGET).elf $(TARGET).hex
+	$(RM) $(call FixPath,src/*.o) $(call FixPath,$(TARGET).elf) $(call FixPath,$(TARGET).hex)
 
 .PHONY: all flash clean
