@@ -4,7 +4,7 @@ import time
 import sys
 
 # Default configuration
-SERIAL_PORT = '/dev/ttyUSB0'
+SERIAL_PORT = '/dev/ttyACM0'
 BAUD_RATE = 115200
 
 class TestFirmwareProtocol(unittest.TestCase):
@@ -157,6 +157,66 @@ class TestFirmwareProtocol(unittest.TestCase):
         self.assertGreater(len(reconstructed_values), 0, "No values reconstructed.")
         print(f"PASS: Checked {len(reconstructed_values)} samples. All within [0, 1023].")
         print(f"Sample values: {reconstructed_values[:10]}...")
+
+    def test_handshake_and_checksum(self):
+        """
+        Test 6: Verify Handshake command and Checksum.
+        Command: '?' (0x3F)
+        Expected: "OSC_V1\\n" + 1 byte XOR checksum.
+        """
+        print("\n[Test] Handshake and Checksum")
+        
+        # Flush buffers
+        self.ser.reset_input_buffer()
+        
+        # Send Handshake
+        self.ser.write(b'?')
+        
+        # Read response
+        # "OSC_V1\n" is 7 bytes. + 1 byte checksum = 8 bytes total.
+        response = self.ser.read(8)
+        
+        self.assertEqual(len(response), 8, f"Timeout or incomplete handshake response. Received: {response}")
+        
+        # Split string and checksum
+        id_string = response[:-1]
+        received_checksum = response[-1]
+        
+        # Assertion 1: Verify ID String
+        expected_string = b"OSC_V1\n"
+        self.assertEqual(id_string, expected_string, f"Invalid ID string. Expected {expected_string}, got {id_string}")
+        
+        # Assertion 2: Verify Checksum
+        expected_checksum = 0
+        for byte in expected_string:
+            expected_checksum ^= byte
+            
+        self.assertEqual(received_checksum, expected_checksum, 
+                         f"Checksum mismatch. Calc: {hex(expected_checksum)}, Recv: {hex(received_checksum)}")
+        
+        print(f"PASS: Handshake verified. ID: {id_string.strip()}, Checksum: {hex(received_checksum)}")
+
+    def test_robustness_invalid_commands(self):
+        """
+        Test 7: Send garbage commands and verify device stability.
+        """
+        print("\n[Test] Robustness - Invalid Commands")
+        
+        # Send garbage
+        garbage = b'\xFF\xAB\x00\xCA\xFE'
+        self.ser.write(garbage)
+        
+        # Wait a moment to ensure no crash/reset loop triggered immediately
+        time.sleep(0.5)
+        
+        # Verify device is still responsive by sending a valid START command
+        self.ser.write(b'\x01')
+        
+        # Read data
+        data = self.ser.read(50)
+        
+        self.assertGreater(len(data), 0, "Device unresponsive after garbage input.")
+        print("PASS: Device survived garbage input and resumed operation.")
 
     def test_stop_command(self):
         """
