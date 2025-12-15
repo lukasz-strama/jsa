@@ -1,0 +1,36 @@
+name: Release Firmware
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    name: Build and Release Firmware
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install AVR Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-avr avr-libc make
+
+      - name: Build Firmware
+        run: |
+          cd firmware
+          make all
+
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: firmware/firmware.hex
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
