@@ -9,7 +9,7 @@ OBJCOPY = avr-objcopy
 AVRDUDE = avrdude
 CFLAGS = -Os -DF_CPU=$(F_CPU) -mmcu=$(MCU) -Wall -Wextra -Iinclude
 
-SRC = src/main.c src/adc.c src/uart.c src/timer.c
+SRC = src/main.c src/adc.c src/uart.c src/timer.c src/gpio.c
 OBJ = $(SRC:.c=.o)
 
 TARGET = firmware
