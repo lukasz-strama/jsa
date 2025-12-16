@@ -2,6 +2,9 @@ package pl.polsl.rtsa.hardware;
 
 import com.fazecast.jSerialComm.SerialPort;
 import com.fazecast.jSerialComm.SerialPortInvalidPortException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import pl.polsl.rtsa.config.AppConfig;
 import pl.polsl.rtsa.model.DeviceCommand;
 import pl.polsl.rtsa.model.SignalResult;
 import pl.polsl.rtsa.service.SignalProcessingService;
@@ -21,52 +24,68 @@ import java.util.stream.Collectors;
  */
 public class RealDeviceClient implements DeviceClient {
 
-    private static final int BAUD_RATE = 2_000_000;
-    private static final int BUFFER_SIZE = 1024;
+    private static final Logger logger = LoggerFactory.getLogger(RealDeviceClient.class);
+    private final AppConfig config = AppConfig.getInstance();
 
     private SerialPort serialPort;
     private final List<DataListener> listeners = new CopyOnWriteArrayList<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private Thread readerThread;
-    private double currentSampleRate = 1000.0;
+    private double currentSampleRate;
     private final SignalProcessingService dspService = new SignalProcessingService();
+
+    public RealDeviceClient() {
+        this.currentSampleRate = config.getSampleRate();
+    }
 
     @Override
     public boolean connect(String portName) {
+        logger.info("Connecting to port: {}", portName);
         try {
             serialPort = SerialPort.getCommPort(portName);
-            serialPort.setBaudRate(BAUD_RATE);
+            serialPort.setBaudRate(config.getBaudRate());
             serialPort.setNumDataBits(8);
             serialPort.setNumStopBits(SerialPort.ONE_STOP_BIT);
             serialPort.setParity(SerialPort.NO_PARITY);
-            serialPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, 2000, 0);
+            serialPort.setComPortTimeouts(SerialPort.TIMEOUT_READ_BLOCKING, config.getReadTimeout(), 0);
 
             if (!serialPort.openPort()) {
-                notifyError("Failed to open serial port.");
+                String msg = "Failed to open serial port: " + portName;
+                logger.error(msg);
+                notifyError(msg);
                 return false;
             }
 
             // Allow Arduino to reset
             try {
-                Thread.sleep(2000);
+                logger.debug("Waiting {}ms for device reset...", config.getAutoResetDelay());
+                Thread.sleep(config.getAutoResetDelay());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                logger.warn("Reset wait interrupted");
             }
 
             if (!performHandshake()) {
                 serialPort.closePort();
-                notifyError("Handshake failed.");
+                String msg = "Handshake failed with device on " + portName;
+                logger.error(msg);
+                notifyError(msg);
                 return false;
             }
 
+            logger.info("Connected successfully to {}", portName);
             startReading();
             return true;
 
         } catch (SerialPortInvalidPortException e) {
-            notifyError("Invalid Port: " + e.getMessage());
+            String msg = "Invalid Port: " + e.getMessage();
+            logger.error(msg, e);
+            notifyError(msg);
             return false;
         } catch (Exception e) {
-            notifyError("Connection Error: " + e.getMessage());
+            String msg = "Connection Error: " + e.getMessage();
+            logger.error(msg, e);
+            notifyError(msg);
             return false;
         }
     }
@@ -78,6 +97,7 @@ public class RealDeviceClient implements DeviceClient {
      * @return true if handshake succeeds.
      */
     private boolean performHandshake() {
+        logger.debug("Performing handshake...");
         try {
             while (serialPort.bytesAvailable() > 0) {
                 byte[] sink = new byte[serialPort.bytesAvailable()];
@@ -92,23 +112,28 @@ public class RealDeviceClient implements DeviceClient {
             
             if (len > 0) {
                 String response = new String(buffer, 0, len);
+                logger.debug("Handshake response: {}", response);
                 if (response.contains("OSC_V1")) {
                     return true;
                 } else {
+                    logger.warn("Handshake mismatch. Received: {}", response);
                     notifyError("Handshake mismatch. Received: " + response);
                     return false;
                 }
             }
+            logger.warn("Handshake timeout. No response.");
             notifyError("Handshake timeout. No response.");
             return false;
 
         } catch (Exception e) {
+            logger.error("Handshake exception", e);
             return false;
         }
     }
 
     @Override
     public void disconnect() {
+        logger.info("Disconnecting...");
         running.set(false);
         if (readerThread != null) {
             try {
@@ -121,12 +146,14 @@ public class RealDeviceClient implements DeviceClient {
             sendCommand(DeviceCommand.STOP_ACQUISITION);
             serialPort.closePort();
         }
+        logger.info("Disconnected");
     }
 
     @Override
     public void sendCommand(DeviceCommand cmd) {
         if (serialPort == null || !serialPort.isOpen()) return;
 
+        logger.debug("Sending command: {}", cmd);
         byte byteCmd = 0;
         switch (cmd) {
             case START_ACQUISITION -> byteCmd = 0x01;
@@ -167,9 +194,12 @@ public class RealDeviceClient implements DeviceClient {
     }
 
     private void readLoop() {
-        int[] rawBuffer = new int[BUFFER_SIZE];
+        int bufferSize = config.getBufferSize();
+        int[] rawBuffer = new int[bufferSize];
         int sampleIndex = 0;
         InputStream in = serialPort.getInputStream();
+
+        logger.debug("Starting read loop with buffer size: {}", bufferSize);
 
         try {
             while (running.get()) {
@@ -185,7 +215,7 @@ public class RealDeviceClient implements DeviceClient {
                     int raw = ((high & 0x07) << 7) | (low & 0x7F);
                     rawBuffer[sampleIndex++] = raw;
 
-                    if (sampleIndex >= BUFFER_SIZE) {
+                    if (sampleIndex >= bufferSize) {
                         processBuffer(rawBuffer);
                         sampleIndex = 0;
                     }
@@ -195,7 +225,9 @@ public class RealDeviceClient implements DeviceClient {
             }
         } catch (Exception e) {
             if (running.get()) {
-                notifyError("Read Error: " + e.getMessage());
+                String msg = "Read Error: " + e.getMessage();
+                logger.error(msg, e);
+                notifyError(msg);
             }
         }
     }

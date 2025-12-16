@@ -1,6 +1,9 @@
 package pl.polsl.rtsa.service;
 
 import org.jtransforms.fft.DoubleFFT_1D;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import pl.polsl.rtsa.config.AppConfig;
 
 import java.util.Arrays;
 
@@ -13,8 +16,10 @@ import java.util.Arrays;
  */
 public class SignalProcessingService {
 
+    private static final Logger logger = LoggerFactory.getLogger(SignalProcessingService.class);
     private static final double V_REF = 5.0;
     private static final int ADC_RES = 1024;
+    private final AppConfig config = AppConfig.getInstance();
 
     /**
      * Converts raw ADC values (0-1023) to voltage levels (0.0-5.0V).
@@ -97,10 +102,7 @@ public class SignalProcessingService {
             magnitude[k] = Math.sqrt(re * re + im * im);
         }
 
-        // Note: Nyquist component is at processedData[1] (Re) and Im is 0.
-        // Currently returning N/2 bins, so Nyquist is excluded from this array.
-        // If needed, it could be appended, but usually N/2 bins are sufficient for calculation.
-
+        logger.debug("FFT computed for {} samples. Spectrum size: {}", n, magnitude.length);
         return magnitude;
     }
 
