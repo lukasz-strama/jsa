@@ -77,34 +77,40 @@ Aplikacja realizuje wzorzec **MVC** z wyraźnym podziałem na wątki (concurrenc
 
 ```mermaid
 classDiagram
-    class DeviceController {
-        <<Interface>>
-        +connect(port)
-        +disconnect()
-        +sendCommand(byte)
-        +getAvailablePorts()
-    }
-    
-    class SerialDeviceService {
-        -SerialPort port
-        -BlockingQueue dataQueue
-        +handshake() : boolean
-    }
-    
-    class SignalProcessor {
-        +processWindow(double[] samples)
-        -fftService : FFTService
-    }
-    
-    class MainController {
-        -canvas : OscilloscopeCanvas
-        +onConnectClick()
-        +updateCharts()
+    class SignalResult {
+        <<Record>>
+        +double[] rawValues
+        +double[] fftSpectrum
+        +double statsRMS
     }
 
-    DeviceController <|.. SerialDeviceService
-    SerialDeviceService --> SignalProcessor : feeds raw data
-    SignalProcessor --> MainController : sends AnalysisResult
+    class DeviceClient {
+        <<Interface>>
+        +connect(String port) : boolean
+        +disconnect()
+        +sendCommand(Command cmd)
+        +addListener(DataListener listener)
+    }
+
+    class DataListener {
+        <<Interface>>
+        +onNewData(SignalResult data)
+    }
+
+    class RealDeviceClient {
+        -SerialPort port
+        -Buffer buffer
+        -Thread readerThread
+    }
+
+    class MockDeviceClient {
+        -Thread generatorThread
+    }
+
+    DeviceClient <|.. RealDeviceClient : Implements 
+    DeviceClient <|.. MockDeviceClient : Implements
+    DeviceClient --> DataListener : Notifies
+    DataListener ..> SignalResult : Uses
 ```
 
 ### 4.3. Opis Warstw
