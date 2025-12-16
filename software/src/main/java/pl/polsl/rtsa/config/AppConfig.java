@@ -58,11 +58,31 @@ public class AppConfig {
         return getIntProperty("dsp.buffer_size", 1024);
     }
 
+    public double getVRef() {
+        return getDoubleProperty("dsp.v_ref", 5.0);
+    }
+
+    public int getAdcResolution() {
+        return getIntProperty("dsp.adc_resolution", 1024);
+    }
+
     private int getIntProperty(String key, int defaultValue) {
         String value = properties.getProperty(key);
         if (value != null) {
             try {
                 return Integer.parseInt(value);
+            } catch (NumberFormatException e) {
+                logger.warn("Invalid format for key '{}': {}. Using default: {}", key, value, defaultValue);
+            }
+        }
+        return defaultValue;
+    }
+
+    private double getDoubleProperty(String key, double defaultValue) {
+        String value = properties.getProperty(key);
+        if (value != null) {
+            try {
+                return Double.parseDouble(value);
             } catch (NumberFormatException e) {
                 logger.warn("Invalid format for key '{}': {}. Using default: {}", key, value, defaultValue);
             }

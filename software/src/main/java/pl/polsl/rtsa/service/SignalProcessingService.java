@@ -17,9 +17,11 @@ import java.util.Arrays;
 public class SignalProcessingService {
 
     private static final Logger logger = LoggerFactory.getLogger(SignalProcessingService.class);
-    private static final double V_REF = 5.0;
-    private static final int ADC_RES = 1024;
     private final AppConfig config = AppConfig.getInstance();
+    
+    // Cache for FFT instance to avoid re-initialization overhead
+    private DoubleFFT_1D cachedFFT;
+    private int cachedFFTSize = -1;
 
     /**
      * Converts raw ADC values (0-1023) to voltage levels (0.0-5.0V).
@@ -31,9 +33,12 @@ public class SignalProcessingService {
         if (rawData == null) {
             return new double[0];
         }
+        double vRef = config.getVRef();
+        int adcRes = config.getAdcResolution();
+        
         double[] voltageData = new double[rawData.length];
         for (int i = 0; i < rawData.length; i++) {
-            voltageData[i] = (rawData[i] * V_REF) / ADC_RES;
+            voltageData[i] = (rawData[i] * vRef) / adcRes;
         }
         return voltageData;
     }
@@ -88,8 +93,12 @@ public class SignalProcessingService {
 
         // 3. Perform FFT
         // JTransforms DoubleFFT_1D.realForward computes FFT in-place.
-        DoubleFFT_1D fft = new DoubleFFT_1D(paddedSize);
-        fft.realForward(processedData);
+        if (cachedFFT == null || cachedFFTSize != paddedSize) {
+            cachedFFT = new DoubleFFT_1D(paddedSize);
+            cachedFFTSize = paddedSize;
+            logger.debug("Re-initializing FFT with size: {}", paddedSize);
+        }
+        cachedFFT.realForward(processedData);
 
         // 4. Calculate Magnitude
         // Return N/2 bins
