@@ -2,9 +2,9 @@ package pl.polsl.rtsa.hardware;
 
 import com.fazecast.jSerialComm.SerialPort;
 import com.fazecast.jSerialComm.SerialPortInvalidPortException;
-import org.jtransforms.fft.DoubleFFT_1D;
 import pl.polsl.rtsa.model.DeviceCommand;
 import pl.polsl.rtsa.model.SignalResult;
+import pl.polsl.rtsa.service.SignalProcessingService;
 
 import java.io.InputStream;
 import java.util.Arrays;
@@ -23,14 +23,13 @@ public class RealDeviceClient implements DeviceClient {
 
     private static final int BAUD_RATE = 2_000_000;
     private static final int BUFFER_SIZE = 1024;
-    private static final double V_REF = 5.0;
-    private static final int ADC_RES = 1024;
 
     private SerialPort serialPort;
     private final List<DataListener> listeners = new CopyOnWriteArrayList<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
     private Thread readerThread;
     private double currentSampleRate = 1000.0;
+    private final SignalProcessingService dspService = new SignalProcessingService();
 
     @Override
     public boolean connect(String portName) {
@@ -168,7 +167,7 @@ public class RealDeviceClient implements DeviceClient {
     }
 
     private void readLoop() {
-        double[] sampleBuffer = new double[BUFFER_SIZE];
+        int[] rawBuffer = new int[BUFFER_SIZE];
         int sampleIndex = 0;
         InputStream in = serialPort.getInputStream();
 
@@ -184,11 +183,10 @@ public class RealDeviceClient implements DeviceClient {
                     if (low == -1) break;
 
                     int raw = ((high & 0x07) << 7) | (low & 0x7F);
-                    double voltage = (raw * V_REF) / ADC_RES;
-                    sampleBuffer[sampleIndex++] = voltage;
+                    rawBuffer[sampleIndex++] = raw;
 
                     if (sampleIndex >= BUFFER_SIZE) {
-                        processBuffer(sampleBuffer);
+                        processBuffer(rawBuffer);
                         sampleIndex = 0;
                     }
                 } else {
@@ -202,27 +200,21 @@ public class RealDeviceClient implements DeviceClient {
         }
     }
 
-    private void processBuffer(double[] timeData) {
-        double[] fftData = Arrays.copyOf(timeData, timeData.length);
-        
-        DoubleFFT_1D fft = new DoubleFFT_1D(BUFFER_SIZE);
-        fft.realForward(fftData);
+    private void processBuffer(int[] rawData) {
+        // 1. Convert to Voltage
+        double[] voltageData = dspService.convertToVoltage(rawData);
 
-        double[] magnitude = new double[BUFFER_SIZE / 2];
-        magnitude[0] = Math.abs(fftData[0]);
-        
-        for (int i = 1; i < magnitude.length; i++) {
-            double re = fftData[2 * i];
-            double im = fftData[2 * i + 1];
-            magnitude[i] = Math.sqrt(re * re + im * im);
-        }
+        // 2. Compute FFT (includes Windowing)
+        double[] fftData = dspService.computeFFT(voltageData);
 
+        // 3. Create Result
         SignalResult result = new SignalResult(
-            Arrays.copyOf(timeData, timeData.length),
-            magnitude,
+            voltageData,
+            fftData,
             currentSampleRate
         );
 
+        // 4. Notify Listeners
         notifyListeners(result);
     }
 

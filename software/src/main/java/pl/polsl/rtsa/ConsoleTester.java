@@ -11,7 +11,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * A production-grade console diagnostic tool for the Signal Analysis hardware.
+ * A console diagnostic tool for the Signal Analysis hardware.
  * <p>
  * This tool verifies the connection, performs a handshake, and captures a brief
  * sample of data to ensure the backend logic is functioning correctly.
@@ -34,9 +34,25 @@ public class ConsoleTester {
             @Override
             public void onNewData(SignalResult result) {
                 double rms = calculateRMS(result.timeDomainData());
-                ConsoleLogger.success(String.format("RECEIVED | Samples: %d | RMS: %.4f V | Rate: %.0f Hz",
-                        result.timeDomainData().length,
+                
+                // Calculate Dominant Frequency
+                double[] freqData = result.freqDomainData();
+                int maxIndex = 0;
+                double maxVal = -1.0;
+                // Skip DC component at index 0
+                for (int i = 1; i < freqData.length; i++) {
+                    if (freqData[i] > maxVal) {
+                        maxVal = freqData[i];
+                        maxIndex = i;
+                    }
+                }
+                
+                // Calculate Frequency: index * (SampleRate / 2) / arrayLength
+                double dominantFreq = maxIndex * (result.sampleRate() / 2.0) / freqData.length;
+
+                ConsoleLogger.success(String.format("RECEIVED | RMS: %.4f V | Main Freq: %.1f Hz | Rate: %.0f Hz",
                         rms,
+                        dominantFreq,
                         result.sampleRate()));
             }
 
