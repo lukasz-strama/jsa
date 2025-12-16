@@ -74,35 +74,38 @@ public class SignalProcessingService {
         }
 
         int n = voltageData.length;
+        // Zero-pad to at least 65536 to improve peak detection resolution
+        int paddedSize = Math.max(n, 65536);
         
         // 1. Apply Hamming Window (on a copy to preserve original data)
-        double[] processedData = Arrays.copyOf(voltageData, n);
-        applyHammingWindow(processedData);
+        double[] windowedData = Arrays.copyOf(voltageData, n);
+        applyHammingWindow(windowedData);
 
-        // 2. Perform FFT
+        // 2. Prepare Padded Buffer
+        double[] processedData = new double[paddedSize];
+        System.arraycopy(windowedData, 0, processedData, 0, n);
+        // Remaining elements are 0.0 by default
+
+        // 3. Perform FFT
         // JTransforms DoubleFFT_1D.realForward computes FFT in-place.
-        // Layout for even N: [Re(0), Re(N/2), Re(1), Im(1), Re(2), Im(2), ...]
-        DoubleFFT_1D fft = new DoubleFFT_1D(n);
+        DoubleFFT_1D fft = new DoubleFFT_1D(paddedSize);
         fft.realForward(processedData);
 
-        // 3. Calculate Magnitude
-        // Return N/2 bins (DC up to Nyquist-1)
-        double[] magnitude = new double[n / 2];
+        // 4. Calculate Magnitude
+        // Return N/2 bins
+        double[] magnitude = new double[paddedSize / 2];
 
         // DC Component (Index 0)
         magnitude[0] = Math.abs(processedData[0]);
 
-        // AC Components (Indices 1 to N/2 - 1)
-        // In JTransforms output array 'processedData':
-        // Re(k) is at index 2*k
-        // Im(k) is at index 2*k + 1
-        for (int k = 1; k < n / 2; k++) {
+        // AC Components
+        for (int k = 1; k < paddedSize / 2; k++) {
             double re = processedData[2 * k];
             double im = processedData[2 * k + 1];
             magnitude[k] = Math.sqrt(re * re + im * im);
         }
 
-        logger.debug("FFT computed for {} samples. Spectrum size: {}", n, magnitude.length);
+        logger.debug("FFT computed. Input: {}, Padded: {}, Spectrum: {}", n, paddedSize, magnitude.length);
         return magnitude;
     }
 

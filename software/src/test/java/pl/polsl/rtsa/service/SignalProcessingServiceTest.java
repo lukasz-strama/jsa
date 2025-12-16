@@ -75,10 +75,12 @@ class SignalProcessingServiceTest {
 
         // Calculate Frequency from Bin
         // Freq = binIndex * SampleRate / N
-        double detectedFreq = (double) peakBin * sampleRate / bufferSize;
+        // Note: The service might zero-pad the signal, so we must determine N from the output size
+        int fftSize = magnitudeSpectrum.length * 2;
+        double detectedFreq = (double) peakBin * sampleRate / fftSize;
 
         // Assert
-        // Bin resolution is SampleRate / N = 1000 / 1024 ~= 0.97 Hz
+        // Bin resolution is SampleRate / N
         // So we expect the result to be within ~1 Hz of 50 Hz
         Assertions.assertEquals(targetFreq, detectedFreq, 1.5, "Peak frequency should be approx 50Hz");
     }

@@ -13,6 +13,8 @@ import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -33,9 +35,34 @@ public class RealDeviceClient implements DeviceClient {
     private Thread readerThread;
     private double currentSampleRate;
     private final SignalProcessingService dspService = new SignalProcessingService();
+    
+    // Processing Executor to prevent blocking the reader thread
+    private final ExecutorService processingExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "DSP-Worker");
+        t.setDaemon(true);
+        return t;
+    });
+    private final AtomicBoolean isProcessing = new AtomicBoolean(false);
+
+    // Ring Buffer Fields
+    private final int[] ringBuffer;
+    private int headIndex = 0;
+    private int samplesPerFrame;
+    private int samplesSinceLastUpdate = 0;
 
     public RealDeviceClient() {
         this.currentSampleRate = config.getSampleRate();
+        this.ringBuffer = new int[config.getBufferSize()];
+        recalculateSamplesPerFrame();
+    }
+
+    private void recalculateSamplesPerFrame() {
+        // Target 30 FPS
+        this.samplesPerFrame = (int) (currentSampleRate / 30.0);
+        if (this.samplesPerFrame < 1) {
+            this.samplesPerFrame = 1;
+        }
+        logger.debug("Samples per frame updated to: {} (Rate: {})", samplesPerFrame, currentSampleRate);
     }
 
     @Override
@@ -136,12 +163,17 @@ public class RealDeviceClient implements DeviceClient {
         logger.info("Disconnecting...");
         running.set(false);
         if (readerThread != null) {
+            readerThread.interrupt(); // Interrupt to break any sleep/blocking
             try {
                 readerThread.join(1000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
+        
+        // Shutdown executor
+        processingExecutor.shutdownNow();
+        
         if (serialPort != null && serialPort.isOpen()) {
             sendCommand(DeviceCommand.STOP_ACQUISITION);
             serialPort.closePort();
@@ -161,14 +193,17 @@ public class RealDeviceClient implements DeviceClient {
             case SET_RATE_1KHZ -> {
                 byteCmd = 0x10;
                 currentSampleRate = 1000.0;
+                recalculateSamplesPerFrame();
             }
             case SET_RATE_10KHZ -> {
                 byteCmd = 0x11;
                 currentSampleRate = 10000.0;
+                recalculateSamplesPerFrame();
             }
             case SET_RATE_20KHZ -> {
                 byteCmd = 0x12;
                 currentSampleRate = 20000.0;
+                recalculateSamplesPerFrame();
             }
         }
         serialPort.writeBytes(new byte[]{byteCmd}, 1);
@@ -194,30 +229,44 @@ public class RealDeviceClient implements DeviceClient {
     }
 
     private void readLoop() {
-        int bufferSize = config.getBufferSize();
-        int[] rawBuffer = new int[bufferSize];
-        int sampleIndex = 0;
+        int bufferSize = ringBuffer.length;
         InputStream in = serialPort.getInputStream();
+        byte[] transferBuffer = new byte[2048];
+        int highByte = -1;
 
-        logger.debug("Starting read loop with buffer size: {}", bufferSize);
+        logger.debug("Starting optimized read loop with ring buffer size: {}", bufferSize);
 
         try {
             while (running.get()) {
-                if (in.available() >= 2) {
-                    int high = in.read();
-                    if ((high & 0x80) == 0) {
-                        continue; // Lost sync
-                    }
+                int available = in.available();
+                if (available > 0) {
+                    int bytesToRead = Math.min(available, transferBuffer.length);
+                    int readCount = in.read(transferBuffer, 0, bytesToRead);
 
-                    int low = in.read();
-                    if (low == -1) break;
+                    for (int i = 0; i < readCount; i++) {
+                        int b = transferBuffer[i] & 0xFF;
 
-                    int raw = ((high & 0x07) << 7) | (low & 0x7F);
-                    rawBuffer[sampleIndex++] = raw;
+                        if ((b & 0x80) != 0) {
+                            // High Byte (Bit 7 set)
+                            highByte = b;
+                        } else {
+                            // Low Byte (Bit 7 clear)
+                            if (highByte != -1) {
+                                int raw = ((highByte & 0x07) << 7) | (b & 0x7F);
 
-                    if (sampleIndex >= bufferSize) {
-                        processBuffer(rawBuffer);
-                        sampleIndex = 0;
+                                // Ring Buffer Logic
+                                ringBuffer[headIndex] = raw;
+                                headIndex = (headIndex + 1) % bufferSize;
+                                samplesSinceLastUpdate++;
+
+                                // FPS Limiter Logic
+                                if (samplesSinceLastUpdate >= samplesPerFrame) {
+                                    updateUI();
+                                    samplesSinceLastUpdate = 0;
+                                }
+                                highByte = -1; // Reset
+                            }
+                        }
                     }
                 } else {
                     Thread.sleep(1);
@@ -230,6 +279,49 @@ public class RealDeviceClient implements DeviceClient {
                 notifyError(msg);
             }
         }
+    }
+
+    private void updateUI() {
+        // If DSP is busy, skip this frame to avoid backpressure on the reader thread
+        if (isProcessing.get()) {
+            return;
+        }
+
+        // Determine processing window size (Target ~1.5s of history)
+        // 1kHz -> 1500, 10kHz -> 15000, 20kHz -> 30000
+        int targetHistory = (int) (currentSampleRate * 1.5);
+        int len = Math.min(targetHistory, ringBuffer.length);
+        // Ensure minimum size for stability
+        len = Math.max(len, 1024);
+
+        int[] processingBuffer = new int[len];
+
+        // Extract the LAST 'len' samples from the ring buffer
+        // The newest sample is at (headIndex - 1)
+        int startIndex = (headIndex - len);
+        if (startIndex < 0) {
+            startIndex += ringBuffer.length;
+        }
+
+        // Copy first chunk (startIndex -> end of array)
+        int firstChunkLen = Math.min(len, ringBuffer.length - startIndex);
+        System.arraycopy(ringBuffer, startIndex, processingBuffer, 0, firstChunkLen);
+
+        // Copy second chunk (start of array -> rest) if wrapped
+        if (firstChunkLen < len) {
+            int secondChunkLen = len - firstChunkLen;
+            System.arraycopy(ringBuffer, 0, processingBuffer, firstChunkLen, secondChunkLen);
+        }
+
+        // Offload processing to separate thread
+        isProcessing.set(true);
+        processingExecutor.submit(() -> {
+            try {
+                processBuffer(processingBuffer);
+            } finally {
+                isProcessing.set(false);
+            }
+        });
     }
 
     private void processBuffer(int[] rawData) {
