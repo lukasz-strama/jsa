@@ -17,23 +17,21 @@
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
-            <version>${javafx.version}</version> 
+            <version>${javafx.version}</version>
         </dependency>
         
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-fxml</artifactId>
-            <version>${javafx.version}</version> 
+            <version>${javafx.version}</version>
         </dependency>
         
-        <!-- http://fazecast.github.io/jSerialComm/ -->
         <dependency>
             <groupId>com.fazecast</groupId>
             <artifactId>jSerialComm</artifactId>
             <version>2.10.4</version>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/com.github.wendykierp/JTransforms -->
         <dependency>
             <groupId>com.github.wendykierp</groupId>
             <artifactId>JTransforms</artifactId>
@@ -48,15 +46,20 @@
         </dependency>
     </dependencies>
     
-    <!-- Build using Maven: mvn clean javafx:run -->
     <build>
+
+        <!-- Build and run: mvn javafx:run -->
+        <!-- Package: mvn clean package -->
+        <!-- Test acquisition: mvn exec:java -Dexec.mainClass="pl.polsl.rtsa.ConsoleTester" -->
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <release>21</release> </configuration>
+                    <release>21</release>
+                </configuration>
             </plugin>
             
             <plugin>
