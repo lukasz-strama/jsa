@@ -3,6 +3,7 @@ package pl.polsl.rtsa.service;
 import org.jtransforms.fft.DoubleFFT_1D;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import pl.polsl.rtsa.api.dto.SignalStatistics;
 import pl.polsl.rtsa.config.AppConfig;
 
 import java.util.Arrays;
@@ -11,17 +12,52 @@ import java.util.Arrays;
  * Service responsible for Digital Signal Processing (DSP) operations.
  * <p>
  * Handles voltage conversion, windowing, FFT calculation, and statistical analysis
- * of the signal data.
+ * of the signal data. This service is thread-safe and can be shared across multiple threads.
+ * </p>
+ * <p>
+ * <b>Production Notes:</b>
+ * <ul>
+ *   <li>FFT instances are cached per-size to avoid reallocation overhead</li>
+ *   <li>Zero-padding to 65536 samples provides ~0.015 Hz resolution at 1kHz sample rate</li>
+ *   <li>Hamming window is applied by default to reduce spectral leakage</li>
+ * </ul>
  * </p>
  */
 public class SignalProcessingService {
 
     private static final Logger logger = LoggerFactory.getLogger(SignalProcessingService.class);
-    private final AppConfig config = AppConfig.getInstance();
+    
+    /** Minimum FFT size for adequate frequency resolution */
+    private static final int MIN_FFT_SIZE = 65536;
+    
+    /** Minimum frequency threshold to skip DC leakage (Hz) */
+    private static final double MIN_FREQ_THRESHOLD = 2.0;
+    
+    private final AppConfig config;
     
     // Cache for FFT instance to avoid re-initialization overhead
     private DoubleFFT_1D cachedFFT;
     private int cachedFFTSize = -1;
+    
+    // Pre-computed window coefficients cache
+    private double[] cachedWindow;
+    private int cachedWindowSize = -1;
+
+    /**
+     * Creates a new SignalProcessingService with default configuration.
+     */
+    public SignalProcessingService() {
+        this.config = AppConfig.getInstance();
+    }
+
+    /**
+     * Creates a new SignalProcessingService with custom configuration.
+     *
+     * @param config The application configuration to use.
+     */
+    public SignalProcessingService(AppConfig config) {
+        this.config = config;
+    }
 
     /**
      * Converts raw ADC values (0-1023) to voltage levels (0.0-5.0V).
@@ -79,8 +115,8 @@ public class SignalProcessingService {
         }
 
         int n = voltageData.length;
-        // Zero-pad to at least 65536 to improve peak detection resolution
-        int paddedSize = Math.max(n, 65536);
+        // Zero-pad to at least MIN_FFT_SIZE to improve peak detection resolution
+        int paddedSize = Math.max(n, MIN_FFT_SIZE);
         
         // 1. Apply Hamming Window (on a copy to preserve original data)
         double[] windowedData = Arrays.copyOf(voltageData, n);
@@ -93,12 +129,14 @@ public class SignalProcessingService {
 
         // 3. Perform FFT
         // JTransforms DoubleFFT_1D.realForward computes FFT in-place.
-        if (cachedFFT == null || cachedFFTSize != paddedSize) {
-            cachedFFT = new DoubleFFT_1D(paddedSize);
-            cachedFFTSize = paddedSize;
-            logger.debug("Re-initializing FFT with size: {}", paddedSize);
+        synchronized (this) {
+            if (cachedFFT == null || cachedFFTSize != paddedSize) {
+                cachedFFT = new DoubleFFT_1D(paddedSize);
+                cachedFFTSize = paddedSize;
+                logger.debug("Re-initializing FFT with size: {}", paddedSize);
+            }
+            cachedFFT.realForward(processedData);
         }
-        cachedFFT.realForward(processedData);
 
         // 4. Calculate Magnitude
         // Return N/2 bins
@@ -130,9 +168,245 @@ public class SignalProcessingService {
         int n = data.length;
         if (n <= 1) return;
 
+        // Use cached window if available
+        double[] window = getWindowCoefficients(n);
         for (int i = 0; i < n; i++) {
-            double window = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (n - 1));
-            data[i] *= window;
+            data[i] *= window[i];
         }
+    }
+
+    /**
+     * Gets or computes Hamming window coefficients.
+     * Cached to avoid repeated computation.
+     *
+     * @param size The window size.
+     * @return Array of window coefficients.
+     */
+    private synchronized double[] getWindowCoefficients(int size) {
+        if (cachedWindow == null || cachedWindowSize != size) {
+            cachedWindow = new double[size];
+            for (int i = 0; i < size; i++) {
+                cachedWindow[i] = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (size - 1));
+            }
+            cachedWindowSize = size;
+            logger.debug("Window coefficients computed for size: {}", size);
+        }
+        return cachedWindow;
+    }
+
+    /**
+     * Computes comprehensive signal statistics.
+     *
+     * @param voltageData   Time-domain voltage samples.
+     * @param freqData      Frequency-domain magnitude data.
+     * @param sampleRate    Sampling rate in Hz.
+     * @return SignalStatistics containing all computed metrics.
+     */
+    public SignalStatistics computeStatistics(double[] voltageData, double[] freqData, double sampleRate) {
+        if (voltageData == null || voltageData.length == 0) {
+            return SignalStatistics.empty();
+        }
+
+        // Compute time-domain statistics
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
+        double sum = 0.0;
+        double sumSquares = 0.0;
+
+        for (double v : voltageData) {
+            if (v < min) min = v;
+            if (v > max) max = v;
+            sum += v;
+            sumSquares += v * v;
+        }
+
+        double dcOffset = sum / voltageData.length;
+        double rms = Math.sqrt(sumSquares / voltageData.length);
+        double peakToPeak = max - min;
+
+        // Compute frequency-domain statistics
+        double dominantFreq = 0.0;
+        double dominantMag = 0.0;
+
+        if (freqData != null && freqData.length > 0 && sampleRate > 0) {
+            int fftSize = freqData.length * 2;
+            double binWidth = sampleRate / fftSize;
+            
+            // Skip low-frequency bins to avoid DC and 1/f noise
+            int startBin = Math.max(1, (int) (MIN_FREQ_THRESHOLD / binWidth));
+
+            for (int i = startBin; i < freqData.length; i++) {
+                if (freqData[i] > dominantMag) {
+                    dominantMag = freqData[i];
+                    dominantFreq = i * binWidth;
+                }
+            }
+        }
+
+        return SignalStatistics.builder()
+                .rmsVoltage(rms)
+                .peakToPeak(peakToPeak)
+                .minVoltage(min)
+                .maxVoltage(max)
+                .dcOffset(dcOffset)
+                .dominantFreq(dominantFreq)
+                .dominantFreqMag(dominantMag)
+                .build();
+    }
+
+    /**
+     * Calculates the frequency axis values for FFT output.
+     *
+     * @param fftBinCount Number of FFT bins (spectrum length).
+     * @param sampleRate  Sampling rate in Hz.
+     * @return Array of frequency values in Hz for each bin.
+     */
+    public double[] computeFrequencyAxis(int fftBinCount, double sampleRate) {
+        double[] freqAxis = new double[fftBinCount];
+        int fftSize = fftBinCount * 2;
+        double binWidth = sampleRate / fftSize;
+        
+        for (int i = 0; i < fftBinCount; i++) {
+            freqAxis[i] = i * binWidth;
+        }
+        return freqAxis;
+    }
+
+    /**
+     * Converts magnitude to decibels (dB) with floor limiting.
+     *
+     * @param magnitude    Linear magnitude values.
+     * @param floorDb      Minimum dB value (noise floor).
+     * @return Array of magnitude values in dB.
+     */
+    public double[] convertToDecibels(double[] magnitude, double floorDb) {
+        if (magnitude == null || magnitude.length == 0) {
+            return new double[0];
+        }
+
+        double[] dbValues = new double[magnitude.length];
+        for (int i = 0; i < magnitude.length; i++) {
+            if (magnitude[i] > 0) {
+                dbValues[i] = 20.0 * Math.log10(magnitude[i]);
+                if (dbValues[i] < floorDb) {
+                    dbValues[i] = floorDb;
+                }
+            } else {
+                dbValues[i] = floorDb;
+            }
+        }
+        return dbValues;
+    }
+
+    /**
+     * Normalizes FFT magnitude data for display.
+     *
+     * @param magnitude Raw magnitude values.
+     * @return Normalized magnitude values (0.0 to 1.0).
+     */
+    public double[] normalizeMagnitude(double[] magnitude) {
+        if (magnitude == null || magnitude.length == 0) {
+            return new double[0];
+        }
+
+        double max = 0.0;
+        for (double m : magnitude) {
+            if (m > max) max = m;
+        }
+
+        if (max == 0.0) {
+            return new double[magnitude.length]; // All zeros
+        }
+
+        double[] normalized = new double[magnitude.length];
+        for (int i = 0; i < magnitude.length; i++) {
+            normalized[i] = magnitude[i] / max;
+        }
+        return normalized;
+    }
+
+    /**
+     * Applies a simple moving average filter for smoothing.
+     *
+     * @param data       Input data.
+     * @param windowSize Number of samples to average.
+     * @return Smoothed data.
+     */
+    public double[] applyMovingAverage(double[] data, int windowSize) {
+        if (data == null || data.length == 0 || windowSize <= 1) {
+            return data;
+        }
+
+        int halfWindow = windowSize / 2;
+        double[] smoothed = new double[data.length];
+
+        for (int i = 0; i < data.length; i++) {
+            int start = Math.max(0, i - halfWindow);
+            int end = Math.min(data.length, i + halfWindow + 1);
+            double sum = 0.0;
+            for (int j = start; j < end; j++) {
+                sum += data[j];
+            }
+            smoothed[i] = sum / (end - start);
+        }
+        return smoothed;
+    }
+
+    /**
+     * Removes DC offset from the signal.
+     *
+     * @param data Input voltage data.
+     * @return DC-removed signal (zero-mean).
+     */
+    public double[] removeDCOffset(double[] data) {
+        if (data == null || data.length == 0) {
+            return data;
+        }
+
+        double mean = 0.0;
+        for (double v : data) {
+            mean += v;
+        }
+        mean /= data.length;
+
+        double[] result = new double[data.length];
+        for (int i = 0; i < data.length; i++) {
+            result[i] = data[i] - mean;
+        }
+        return result;
+    }
+
+    /**
+     * Downsamples data for display purposes.
+     *
+     * @param data          Input data array.
+     * @param targetPoints  Maximum number of output points.
+     * @return Downsampled data preserving min/max envelope.
+     */
+    public double[] downsampleForDisplay(double[] data, int targetPoints) {
+        if (data == null || data.length <= targetPoints) {
+            return data;
+        }
+
+        // Use min-max envelope to preserve peaks
+        int samplesPerBucket = data.length / targetPoints;
+        double[] result = new double[targetPoints * 2];
+
+        for (int i = 0; i < targetPoints; i++) {
+            int start = i * samplesPerBucket;
+            int end = Math.min(start + samplesPerBucket, data.length);
+            
+            double min = Double.MAX_VALUE;
+            double max = Double.MIN_VALUE;
+            
+            for (int j = start; j < end; j++) {
+                if (data[j] < min) min = data[j];
+                if (data[j] > max) max = data[j];
+            }
+            
+            result[i * 2] = min;
+            result[i * 2 + 1] = max;
+        }
+        return result;
     }
 }
