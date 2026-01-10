@@ -13,6 +13,7 @@ import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.layout.AnchorPane;
 import pl.polsl.rtsa.hardware.DataListener;
 import pl.polsl.rtsa.model.DeviceCommand;
 import pl.polsl.rtsa.model.SignalResult;
@@ -36,6 +37,8 @@ public class MainController{
     private final double[] yPoints = new double[MAX_POINTS];
 
     private GraphicsContext gc;
+    private boolean isRunning = false;
+    private boolean fftVisible = false;
 
     @FXML private CheckBox FFTCheck;
     @FXML private CheckBox FreezeCheck;
@@ -51,31 +54,30 @@ public class MainController{
     @FXML private ComboBox<String> samplingFreq;
     @FXML private ToggleButton toggleButtonStart;
     @FXML private SplitPane splitPane;
+    @FXML private AnchorPane timePane;
+    @FXML private AnchorPane fftPane;
 
 
     //Initialize method
     @FXML
     public void initialize() {
-        gc = oscilloscopeCanvas.getGraphicsContext2D();
-        gc.setFill(Color.BLACK);
-        
-        // gc.setStroke(Color.LIGHTGREEN);
-        // gc.setLineWidth(2);
-        // gc.strokeLine(0, 200, 600, 200);
-        // gc.fillText("System Ready", 10, 20);
-        
-       // portComboBox.getItems().addAll("COM1", "COM3", "/dev/ttyUSB0");
+
         fftCanvas.setVisible(false);
         fftCanvas.setManaged(false);
         splitPane.setDividerPositions(1.0);
 
+        // Bind canvas sizes to their parent panes - to make them responsive
+        oscilloscopeCanvas.widthProperty().bind(timePane.widthProperty());
+        oscilloscopeCanvas.heightProperty().bind(timePane.heightProperty());
+        fftCanvas.widthProperty().bind(fftPane.widthProperty());
+        fftCanvas.heightProperty().bind(fftPane.heightProperty());
 
         portComboBox.getItems().addAll(deviceClient.getAvailablePorts());
 
         samplingFreq.getItems().addAll("1 kHz", "10 kHz", "20 kHz");
         samplingFreq.getSelectionModel().selectFirst();
 
-        connectionStatus.setText("Disconnected");
+        connectionStatus.setText("Nie połączono");
         connectionStatus.setStyle("-fx-text-fill: red;");
 
         toggleButtonStart.setText("Start");
@@ -87,8 +89,9 @@ public class MainController{
     @FXML
     void handleConnect(ActionEvent event) {
         String port = portComboBox.getValue();
+
         if(port == null){
-            connectionStatus.setText("No port selected");
+            connectionStatus.setText("Nie wybrano portu");
             connectionStatus.setStyle("-fx-text-fill: orange;");
         return;
         }
@@ -96,11 +99,11 @@ public class MainController{
         boolean connected = deviceClient.connect(port);
 
         if(connected) {
-            connectionStatus.setText("Connected");
+            connectionStatus.setText("Połączono");
             connectionStatus.setStyle("-fx-text-fill: green;");
             deviceClient.addListener(dataListener);
         } else {
-            connectionStatus.setText("Connection failed");
+            connectionStatus.setText("Błąd połączenia");
             connectionStatus.setStyle("-fx-text-fill: red;");
         }
     }
@@ -109,11 +112,45 @@ public class MainController{
     @FXML
     void handleStart(ActionEvent event) {
         if(toggleButtonStart.isSelected()) {
+            isRunning = true;
             deviceClient.sendCommand(DeviceCommand.START_ACQUISITION);
             toggleButtonStart.setText("Stop");
+
+            // Restore FFTCheck state
+            fftCanvas.setVisible(fftVisible);
+            FFTCheck.setSelected(fftVisible);
+            fftCanvas.setManaged(fftVisible);
+            oscilloscopeCanvas.setVisible(true);
+
+            // Enable controls
+            FFTCheck.setDisable(false);
+            autoCheck.setDisable(false);
+            FreezeCheck.setDisable(false);
+            
         } else {
+            isRunning = false;
             deviceClient.sendCommand(DeviceCommand.STOP_ACQUISITION);
             toggleButtonStart.setText("Start");
+
+            // Save and disable FFTCheck 
+            fftVisible = FFTCheck.isSelected();
+            FFTCheck.setSelected(false);
+            FFTCheck.setDisable(true); 
+            FreezeCheck.setDisable(true);
+            autoCheck.setDisable(true);  
+
+            // Hide canvases
+            fftCanvas.setVisible(false);
+            fftCanvas.setManaged(false);
+            oscilloscopeCanvas.setVisible(false);
+
+            // Clear canvases
+            clearCanvas(fftCanvas);
+            clearCanvas(oscilloscopeCanvas);
+
+           
+           
+            
         }
     }
 
@@ -197,7 +234,12 @@ public class MainController{
                 if(FFTCheck.isSelected() && fftCanvas.isVisible()) {
                     drawFFTDomain(lastFFTData);
                 }
+
+                if(!isRunning) return;
+            
             }
+
+
             
         };
         timer.start();
@@ -260,6 +302,7 @@ public class MainController{
             fftCanvas.setVisible(true);
             fftCanvas.setManaged(true);
             splitPane.setDividerPositions(0.5);
+            splitPane.requestLayout();
             drawFFTDomain(lastFFTData);
         
         } else {
@@ -319,6 +362,12 @@ public class MainController{
     @FXML
     void freeze(ActionEvent event) {
         
+    }
+
+    //Clear Canvas
+    private void clearCanvas(Canvas canvas) {
+        GraphicsContext gc = canvas.getGraphicsContext2D();
+        gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
     }
 
     //FTT for debugging

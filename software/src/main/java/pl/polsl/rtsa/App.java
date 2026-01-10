@@ -17,7 +17,7 @@ public class App extends Application {
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/pl/polsl/rtsa/view/MainView.fxml"));
         Parent root = loader.load();
         
-        scene = new Scene(root);
+        scene = new Scene(root, 800, 600);
         
         stage.setTitle("JSignalAnalysis - Real Time FFT Analyzer");
         stage.setScene(scene);

@@ -37,16 +37,16 @@
         </VBox>
     </right>
    <center>
-      <SplitPane fx:id="splitPane" dividerPositions="0.5" orientation="VERTICAL" prefHeight="200.0" prefWidth="160.0" BorderPane.alignment="CENTER">
+      <SplitPane fx:id="splitPane" dividerPositions="0.5" orientation="VERTICAL" BorderPane.alignment="CENTER">
         <items>
-          <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="100.0" prefWidth="160.0">
+          <AnchorPane fx:id="timePane" minHeight="0.0" minWidth="0.0">
                <children>
-                  <Canvas fx:id="oscilloscopeCanvas" height="311.0" layoutY="-8.0" style="-fx-background-color: black;" width="625.0" />
+                  <Canvas fx:id="oscilloscopeCanvas" style="-fx-background-color: black;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                </children>
             </AnchorPane>
-          <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="100.0" prefWidth="160.0">
+          <AnchorPane fx:id="fftPane" minHeight="0.0" minWidth="0.0">
                <children>
-                  <Canvas fx:id="fftCanvas" height="283.0" layoutX="2.0" style="-fx-background-color: black;" visible="false" width="621.0" />
+                  <Canvas fx:id="fftCanvas" style="-fx-background-color: black;" visible="false" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
                </children>
             </AnchorPane>
         </items>
