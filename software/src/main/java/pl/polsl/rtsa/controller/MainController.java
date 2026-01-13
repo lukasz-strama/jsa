@@ -5,7 +5,6 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
-import javafx.scene.paint.Color;
 import pl.polsl.rtsa.hardware.DeviceClient;
 import pl.polsl.rtsa.hardware.MockDeviceClient;
 import javafx.event.ActionEvent;
@@ -17,11 +16,6 @@ import javafx.scene.layout.AnchorPane;
 import pl.polsl.rtsa.hardware.DataListener;
 import pl.polsl.rtsa.model.DeviceCommand;
 import pl.polsl.rtsa.model.SignalResult;
-import java.util.Arrays;
-import javafx.scene.control.SplitPane;
-
-import javafx.animation.Animation;
-import javafx.application.Platform;
 import javafx.animation.AnimationTimer;
 
 
@@ -30,15 +24,24 @@ public class MainController{
 
     private DeviceClient deviceClient = new MockDeviceClient();
 
-    private double[] lastTimeData = new double[0];
-    private double[] lastFFTData = new double[0];
-    private static final int MAX_POINTS = 50000; 
-    private final double[] xPoints = new double[MAX_POINTS]; 
-    private final double[] yPoints = new double[MAX_POINTS];
+    private final FFTDomainRen fftRenderer = new FFTDomainRen();
+    private final TimeDomainRen timeRenderer = new TimeDomainRen();
+    private final Autoscaler autoscaler = new Autoscaler();
 
-    private GraphicsContext gc;
+    private double timeMin = 0.0;
+    private double timeMax = 5.0;
+    private double fftMax = 5.0;
+
+    private volatile boolean newDataAvailable = false;
+    private volatile SignalResult lastResult;
     private boolean isRunning = false;
     private boolean fftVisible = false;
+
+    private double cursorX = -1; 
+    private double cursorY = -1; 
+    private boolean cursorActive = false;
+
+
 
     @FXML private CheckBox FFTCheck;
     @FXML private CheckBox FreezeCheck;
@@ -58,6 +61,7 @@ public class MainController{
     @FXML private AnchorPane fftPane;
 
 
+
     //Initialize method
     @FXML
     public void initialize() {
@@ -66,11 +70,11 @@ public class MainController{
         fftCanvas.setManaged(false);
         splitPane.setDividerPositions(1.0);
 
-        // Bind canvas sizes to their parent panes - to make them responsive
-        oscilloscopeCanvas.widthProperty().bind(timePane.widthProperty());
-        oscilloscopeCanvas.heightProperty().bind(timePane.heightProperty());
-        fftCanvas.widthProperty().bind(fftPane.widthProperty());
-        fftCanvas.heightProperty().bind(fftPane.heightProperty());
+        // Resize listeners
+        timePane.widthProperty().addListener((obs, oldV, newV) -> { oscilloscopeCanvas.setWidth(newV.doubleValue()); }); 
+        timePane.heightProperty().addListener((obs, oldV, newV) -> { oscilloscopeCanvas.setHeight(newV.doubleValue()); });
+        fftPane.widthProperty().addListener((obs, oldV, newV) -> { fftCanvas.setWidth(newV.doubleValue()); });
+        fftPane.heightProperty().addListener((obs, oldV, newV) -> { fftCanvas.setHeight(newV.doubleValue()); });
 
         portComboBox.getItems().addAll(deviceClient.getAvailablePorts());
 
@@ -82,6 +86,17 @@ public class MainController{
 
         toggleButtonStart.setText("Start");
 
+        // Mouse events for cursor
+        oscilloscopeCanvas.setOnMouseMoved(e -> { 
+            cursorX = e.getX(); 
+            cursorY = e.getY(); 
+            cursorActive = true; 
+        }); 
+        
+        oscilloscopeCanvas.setOnMouseExited(e -> { 
+            cursorActive = false; });
+
+        
         startRenderLoop();
     }
 
@@ -111,6 +126,7 @@ public class MainController{
     //Start/Stop Acquisition
     @FXML
     void handleStart(ActionEvent event) {
+
         if(toggleButtonStart.isSelected()) {
             isRunning = true;
             deviceClient.sendCommand(DeviceCommand.START_ACQUISITION);
@@ -147,10 +163,6 @@ public class MainController{
             // Clear canvases
             clearCanvas(fftCanvas);
             clearCanvas(oscilloscopeCanvas);
-
-           
-           
-            
         }
     }
 
@@ -177,24 +189,78 @@ public class MainController{
     private final DataListener dataListener = new DataListener() {
         @Override
         public void onNewData(SignalResult result) {
+
             if(FreezeCheck.isSelected()) return; 
-
-            lastTimeData = result.timeDomainData();
-            //lastFFTData = result.freqDomainData();
-            lastFFTData = computeFFT(lastTimeData);
-
-            Platform.runLater(() -> updateLabels(result));
-            
+            lastResult = result;
+            newDataAvailable = true;
         }
 
         @Override
         public void onError(String message){
-            Platform.runLater(() -> {
                 connectionStatus.setText("Error: " + message);
                 connectionStatus.setStyle("-fx-text-fill: red;");
-            });
         }
     };
+
+
+     //Render loop
+    private long lastFrameTime = 0;
+    private static final long FRAME_INTERVAL = 33_333_333; // 30 FPS
+
+    private void startRenderLoop() { 
+        new AnimationTimer() { 
+            @Override 
+            public void handle(long now) { 
+                if (!isRunning) return; 
+                if (now - lastFrameTime < FRAME_INTERVAL) return; 
+                lastFrameTime = now; 
+                renderFrame(); 
+            } 
+        }.start(); 
+    }
+        private void renderFrame() { 
+            if (FreezeCheck.isSelected()) { 
+                if (lastResult != null) 
+                    drawAll(lastResult); 
+                return; } 
+                if (!newDataAvailable) return; 
+                newDataAvailable = false; 
+                if (lastResult != null) { 
+                    updateLabels(lastResult); 
+                    drawAll(lastResult); } } 
+                    
+        private void drawAll(SignalResult result) { 
+        
+            timeRenderer.draw( oscilloscopeCanvas.getGraphicsContext2D(), 
+            result.timeDomainData(), timeMin, timeMax, 
+            oscilloscopeCanvas.getWidth(), 
+            oscilloscopeCanvas.getHeight(), 
+            FreezeCheck.isSelected() && cursorActive, cursorX, cursorY ); 
+            
+            if (FFTCheck.isSelected() && fftCanvas.isVisible()) { 
+                fftRenderer.draw( fftCanvas.getGraphicsContext2D(), 
+                result.freqDomainData(), 
+                fftMax, 
+                getSamplingRate(), 
+                fftCanvas.getWidth(), 
+                fftCanvas.getHeight() ); 
+            } 
+        } 
+        
+        @FXML void autoscaling() { 
+            if (!isRunning) { 
+                autoCheck.setSelected(false); 
+                return; } 
+                if (autoCheck.isSelected() && lastResult != null) { 
+                    double[] scaled = autoscaler.scaleTime(lastResult.timeDomainData()); 
+                    timeMin = scaled[0]; timeMax = scaled[1]; 
+                    fftMax = autoscaler.scaleFFT(lastResult.freqDomainData()); 
+                } else { 
+                    timeMin = 0.0; 
+                    timeMax = 5.0; 
+                    fftMax = 5.0; 
+                }
+             }
 
     //Labels
     private void updateLabels(SignalResult result) {
@@ -215,85 +281,33 @@ public class MainController{
         Vrms.setText(String.format("Vrms: %.2f V", rms));
     }
 
-    //Render loop
+    private double getSamplingRate() { 
+        return switch (samplingFreq.getValue()) { 
+            case "1 kHz" -> 1000.0; 
+            case "10 kHz" -> 10000.0; 
+            case "20 kHz" -> 20000.0; 
+            default -> 1000.0; }; }
+   
 
-    private long lastFrameTime = 0;
-    private static final long FRAME_INTERVAL = 16_666_666; // ~60 FPS
-
-    private void startRenderLoop() {
-        AnimationTimer timer = new AnimationTimer() {
-            @Override
-            public void handle(long now) {
-                if(now - lastFrameTime < FRAME_INTERVAL) return; 
-                lastFrameTime = now;
-
-                if(FreezeCheck.isSelected()) return;
-
-                drawTimeDomain(lastTimeData);
-
-                if(FFTCheck.isSelected() && fftCanvas.isVisible()) {
-                    drawFFTDomain(lastFFTData);
-                }
-
-                if(!isRunning) return;
+//     //Draw Time Domain
+//    if (FreezeCheck.isSelected() && cursorActive && lastResult != null) { 
+//             int index = (int) ((cursorX / w) * total); 
+//             index = Math.max(0, Math.min(index, total - 1)); 
             
-            }
-
-
+//             double norm = (samples[index] - timeMin) / range; 
+//             double sampleY = h - (norm * h); 
+//             double distance = Math.abs(cursorY - sampleY); 
             
-        };
-        timer.start();
-    }
-
-    //Draw Time Domain
-    private void drawTimeDomain(double[] samples) {
-
-        GraphicsContext gc = oscilloscopeCanvas.getGraphicsContext2D();
-
-        double w = oscilloscopeCanvas.getWidth();
-        double h = oscilloscopeCanvas.getHeight();
-
-        gc.clearRect(0, 0, w, h);
-        gc.setStroke(Color.LIGHTSEAGREEN);
-        gc.setLineWidth(1.0);
-        gc.setFill(Color.BLACK); 
-        gc.fillRect(0, 0, w, h);
-
-        int n = samples.length;
-        if(n<2) return;
-        if(n > MAX_POINTS) n = MAX_POINTS;
-
-        double xScale = w / (double) (n - 1);
-
-        double min, max;
-
-        if(autoCheck.isSelected()) {
-            min = Double.POSITIVE_INFINITY; 
-            max = Double.NEGATIVE_INFINITY; 
-            
-            for(int i = 0; i<n; i++){
-                double v = samples[i];
-                if(v < min) min = v;
-                if(v > max) max = v;
-            }
-            
-        } else {
-            min = 0.0;
-            max = 5.0;
-        }
-
-        double range = max - min;
-        if(range == 0) range = 1;
-
-
-        for(int i = 0; i < n; i++) {
-            xPoints[i] = i * xScale;
-            double norm = (samples[i] - min) / range;
-            yPoints[i] = h - (norm * h);
-        }
-
-        gc.strokePolyline(xPoints, yPoints, n);
-    }
+//             if (distance < 8) { 
+//                 gc.setFill(Color.RED); 
+//                 gc.fillOval(cursorX - 3, sampleY - 3, 6, 6);
+//                 String text = String.format("%.3f V", samples[index]); 
+//                 gc.setFill(Color.color(0, 0, 0, 0.75)); 
+//                 gc.fillRoundRect(cursorX + 10, sampleY - 15, 60, 20, 5, 5); 
+//                 gc.setFill(Color.WHITE); 
+//                 gc.fillText(text, cursorX + 15, sampleY); 
+//             } 
+//         } 
 
     //FFT Visualization
     @FXML
@@ -303,8 +317,11 @@ public class MainController{
             fftCanvas.setManaged(true);
             splitPane.setDividerPositions(0.5);
             splitPane.requestLayout();
-            drawFFTDomain(lastFFTData);
-        
+
+            if(lastResult != null)
+            {
+              drawAll(lastResult);
+            }
         } else {
             fftCanvas.setVisible(false);
             fftCanvas.setManaged(false);
@@ -312,53 +329,10 @@ public class MainController{
         }
     }
 
-    //Draw FFT Domain
-    private void drawFFTDomain(double[] fft) {
-    if(fftCanvas == null || fft.length < 2) return;
-    if (!fftCanvas.isVisible()) return;
+//     //Draw FFT Domain
+   
 
-    GraphicsContext gc = fftCanvas.getGraphicsContext2D();
-    double w = fftCanvas.getWidth();
-    double h = fftCanvas.getHeight();
-    if(w <=0 || h <=0) return;
-
-    gc.clearRect(0, 0, w, h);
-    gc.setFill(Color.BLACK); 
-    gc.fillRect(0, 0, w, h);
-    gc.setStroke(Color.ORANGE);
-    gc.setLineWidth(1.5);
     
-
-    int n = fft.length;
-    double xScale = w / (double) (n - 1);
-    double max = Arrays.stream(fft).map(Math::abs).max().orElse(1);
-    if(max == 0) max = 1;
-
-    double[] x = new double[n];
-    double[] y = new double[n];
-
-    for(int i = 0; i < n; i++) {
-        x[i] = i * xScale;
-        double norm = Math.abs(fft[i]) / max;
-        y[i] = h - (norm * h);
-    
-    }
-
-   // System.out.println("FFT length: " + fft.length);
-   // System.out.println("FFT min: " + Arrays.stream(fft).min().orElse(0)); 
-   // System.out.println("FFT max: " + Arrays.stream(fft).max().orElse(0));
-    gc.strokePolyline(x, y, n);
-}
-
-    @FXML
-    void autoscaling(ActionEvent event) {
-        if(autoCheck.isSelected()) {
-            // Implement autoscaling logic if needed
-        } else {
-            // Disable autoscaling logic if needed
-        }
-    }
-
     @FXML
     void freeze(ActionEvent event) {
         
@@ -370,35 +344,50 @@ public class MainController{
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
     }
 
-    //FTT for debugging
-    private double[] computeFFT(double[] samples) { 
-        int n = samples.length; 
-        int m = 1; while (m < n) m <<= 1; 
-        double[] real = new double[m]; 
-        double[] imag = new double[m]; 
-        System.arraycopy(samples, 0, real, 0, n);
-        for (int len = 2; len <= m; len <<= 1) { 
-            double ang = -2 * Math.PI / len; 
-            double wlenR = Math.cos(ang); 
-            double wlenI = Math.sin(ang); 
-            for (int i = 0; i < m; i += len) { 
-                double wr = 1; double wi = 0; 
-                for (int j = 0; j < len / 2; j++) { 
-                    int u = i + j; int v = i + j + len / 2; 
-                    double r = real[v] * wr - imag[v] * wi; 
-                    double im = real[v] * wi + imag[v] * wr; 
-                    real[v] = real[u] - r; imag[v] = imag[u] - im; 
-                    real[u] += r; imag[u] += im; 
-                    double nextWr = wr * wlenR - wi * wlenI; 
-                    wi = wr * wlenI + wi * wlenR; wr = nextWr; 
-                } 
-            } 
-        } 
-        double[] mag = new double[m / 2]; 
-        for (int i = 0; i < mag.length; i++) { 
-            mag[i] = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]); }
-            
-            return mag; }
+//     //Autoscale Time Domain
+//     private void autoscaleTimeDomain() {
+//        if(lastResult == null) return;
+
+//         double[] lastTimeData = lastResult.timeDomainData();
+//         if(lastTimeData.length == 0 || lastTimeData.length < 2) return;
+
+//        double min = Double.POSITIVE_INFINITY;
+//        double max = Double.NEGATIVE_INFINITY;   
+
+//        for(double v : lastTimeData) {
+//            if(v < min) min = v;
+//            if(v > max) max = v;
+//        }
+
+//        if(min == max) {
+//            min -= 1.0;
+//            max += 1.0;
+//        }
+
+//        timeMin = min;
+//        timeMax = max;
+        
+//     }
+
+//     //Autoscale FFT
+//     private void autoscaleFFT() {
+        
+//         if(lastResult == null) return;
+//         double[] lastFFTData = lastResult.freqDomainData();
+//         if(lastFFTData.length == 0 || lastFFTData.length < 2) return;
+
+//         double max = 0;
+
+//         for(double v : lastFFTData) {
+//             if(v > max) max = v;
+//         }
+
+//         if(max == 0) {
+//             max = 1.0;
+//         }
+
+//         fftMax = max;
+//     }
 
 }
 
