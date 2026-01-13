@@ -18,6 +18,7 @@ public class FFTDomainRen {
 
     gc.setStroke(Color.ORANGE);
     gc.setLineWidth(0.5);
+    gc.setFill(Color.ORANGE);
     gc.fillText(String.format("%.2f V", fftMax), 5, 12);
     gc.fillText("0 V", 5, h - 5);
     gc.fillText("Freq [Hz]", w - 50, h - 5);

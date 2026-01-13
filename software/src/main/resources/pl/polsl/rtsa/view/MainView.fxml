@@ -11,7 +11,7 @@
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.VBox?>
 
-<BorderPane prefHeight="600.0" prefWidth="800.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="pl.polsl.rtsa.controller.MainController">
+<BorderPane prefHeight="600.0" prefWidth="800.0" xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="pl.polsl.rtsa.controller.MainController">
 
     <right>
         <VBox spacing="10" style="-fx-padding: 10; -fx-background-color: #f4f4f4;">
@@ -32,7 +32,7 @@
          <Label fx:id="Vmin" text="Min [V]" />
          <Label style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Wizualizacja sygnału" />
          <CheckBox fx:id="FFTCheck" mnemonicParsing="false" onAction="#FFTVisualization" text="Pokaż FFT" />
-         <CheckBox fx:id="FreezeCheck" mnemonicParsing="false" onAction="#freeze" text="Zatrzymaj sygnał (freeze)" />
+         <CheckBox fx:id="FreezeCheck" mnemonicParsing="false" text="Zatrzymaj sygnał (freeze)" />
          <CheckBox fx:id="autoCheck" mnemonicParsing="false" onAction="#autoscaling" text="Autoskalowanie" />
         </VBox>
     </right>
