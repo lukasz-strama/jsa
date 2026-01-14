@@ -57,8 +57,6 @@ public class MainController{
     @FXML private AnchorPane timePane;
     @FXML private AnchorPane fftPane;
 
-
-
     //Initialize method
     @FXML
     public void initialize() {
