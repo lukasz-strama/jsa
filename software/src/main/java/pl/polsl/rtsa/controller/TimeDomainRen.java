@@ -5,7 +5,7 @@ import javafx.scene.paint.Color;
 
 public class TimeDomainRen {
 
-    private static final int MAX_POINTS = 666;
+    private static final int MAX_POINTS = 1024;
     
     private final double[] xPoints = new double[MAX_POINTS];
     private final double[] yPoints = new double[MAX_POINTS];
