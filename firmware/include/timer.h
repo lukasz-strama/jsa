@@ -26,7 +26,7 @@ void Timer1_Stop(void);
 
 /**
  * @brief Set sampling frequency
- * @param rate SAMPLE_RATE_1KHZ or SAMPLE_RATE_10KHZ
+ * @param rate SAMPLE_RATE_1KHZ, SAMPLE_RATE_10KHZ, or SAMPLE_RATE_20KHZ
  */
 void Timer1_SetFrequency(SampleRate rate);
 
