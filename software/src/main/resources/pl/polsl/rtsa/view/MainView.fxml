@@ -22,7 +22,7 @@
             <Button fx:id="connectButton" onAction="#handleConnect" prefWidth="150.0" text="Połącz" />
          <Label fx:id="connectionStatus" prefHeight="18.0" prefWidth="150.0" text="Status połączenia" />
          <Label style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Częstotliwość próbkowania" />
-         <ComboBox fx:id="samplingFreq" prefWidth="150.0" />
+         <ComboBox fx:id="samplingFreq" onAction="#changeSamplingFreq" prefWidth="150.0" />
             
             <Label prefHeight="38.0" prefWidth="88.0" style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Sterowanie" />
          <ToggleButton fx:id="toggleButtonStart" mnemonicParsing="false" onAction="#handleStart" prefHeight="26.0" prefWidth="147.0" text="Start" textAlignment="CENTER" />

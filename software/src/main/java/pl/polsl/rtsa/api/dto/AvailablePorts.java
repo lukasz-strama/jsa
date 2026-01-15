@@ -14,10 +14,10 @@ public record AvailablePorts(
         long lastRefreshTime
 ) {
     /**
-     * Creates an empty ports list.
+     * Creates an empty ports list with timestamp = 0 to force refresh on first use.
      */
     public static AvailablePorts empty() {
-        return new AvailablePorts(List.of(), System.currentTimeMillis());
+        return new AvailablePorts(List.of(), 0);
     }
 
     /**
