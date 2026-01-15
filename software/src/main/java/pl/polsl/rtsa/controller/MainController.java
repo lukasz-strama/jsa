@@ -1,27 +1,28 @@
 package pl.polsl.rtsa.controller;
 
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
-import pl.polsl.rtsa.hardware.DeviceClient;
-import pl.polsl.rtsa.hardware.MockDeviceClient;
 import javafx.event.ActionEvent;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.AnchorPane;
-import pl.polsl.rtsa.hardware.DataListener;
-import pl.polsl.rtsa.model.DeviceCommand;
-import pl.polsl.rtsa.model.SignalResult;
 import javafx.animation.AnimationTimer;
+import pl.polsl.rtsa.api.SignalAnalyzerApi;
+import pl.polsl.rtsa.api.dto.ConnectionStatus;
+import pl.polsl.rtsa.api.dto.SignalData;
+import pl.polsl.rtsa.api.dto.SignalStatistics;
+import pl.polsl.rtsa.api.exception.ConnectionException;
 
 
-public class MainController{
+public class MainController {
 
-    private DeviceClient deviceClient = new MockDeviceClient();
+    private final SignalAnalyzerApi api = SignalAnalyzerApi.create();
 
     private final FFTDomainRen fftRenderer = new FFTDomainRen();
     private final TimeDomainRen timeRenderer = new TimeDomainRen();
@@ -32,7 +33,7 @@ public class MainController{
     private double fftMax = 5.0;
 
     private volatile boolean newDataAvailable = false;
-    private volatile SignalResult lastResult;
+    private volatile SignalData lastSignalData;
     private boolean isRunning = false;
     private boolean fftVisible = false;
 
@@ -71,7 +72,8 @@ public class MainController{
         fftPane.widthProperty().addListener((obs, oldV, newV) -> { fftCanvas.setWidth(newV.doubleValue()); });
         fftPane.heightProperty().addListener((obs, oldV, newV) -> { fftCanvas.setHeight(newV.doubleValue()); });
 
-        portComboBox.getItems().addAll(deviceClient.getAvailablePorts());
+        // Populate ports from API
+        portComboBox.getItems().addAll(api.getAvailablePorts().ports());
 
         samplingFreq.getItems().addAll("1 kHz", "10 kHz", "20 kHz");
         samplingFreq.getSelectionModel().selectFirst();
@@ -80,6 +82,11 @@ public class MainController{
         connectionStatus.setStyle("-fx-text-fill: red;");
 
         toggleButtonStart.setText("Start");
+
+        // Setup API callbacks
+        api.setDataCallback(this::onSignalData);
+        api.setErrorCallback(this::onError);
+        api.setConnectionCallback(this::onConnectionChange);
 
         // Mouse events for cursor
         oscilloscopeCanvas.setOnMouseMoved(e -> { 
@@ -103,17 +110,14 @@ public class MainController{
         if(port == null){
             connectionStatus.setText("Nie wybrano portu");
             connectionStatus.setStyle("-fx-text-fill: orange;");
-        return;
+            return;
         }
 
-        boolean connected = deviceClient.connect(port);
-
-        if(connected) {
-            connectionStatus.setText("Połączono");
-            connectionStatus.setStyle("-fx-text-fill: green;");
-            deviceClient.addListener(dataListener);
-        } else {
-            connectionStatus.setText("Błąd połączenia");
+        try {
+            api.connect(port);
+            // Connection callback will update the UI
+        } catch (ConnectionException e) {
+            connectionStatus.setText("Błąd: " + e.getMessage());
             connectionStatus.setStyle("-fx-text-fill: red;");
         }
     }
@@ -124,7 +128,7 @@ public class MainController{
 
         if(toggleButtonStart.isSelected()) {
             isRunning = true;
-            deviceClient.sendCommand(DeviceCommand.START_ACQUISITION);
+            api.startAcquisition();
             toggleButtonStart.setText("Stop");
 
             // Restore FFTCheck state
@@ -140,7 +144,7 @@ public class MainController{
             
         } else {
             isRunning = false;
-            deviceClient.sendCommand(DeviceCommand.STOP_ACQUISITION);
+            api.stopAcquisition();
             toggleButtonStart.setText("Start");
 
             // Save and disable FFTCheck 
@@ -167,35 +171,40 @@ public class MainController{
         String freq = samplingFreq.getValue();
         if(freq == null) return;
 
-       switch(freq) {
-           case "1 kHz":
-               deviceClient.sendCommand(DeviceCommand.SET_RATE_1KHZ);
-               break;
-           case "10 kHz":
-               deviceClient.sendCommand(DeviceCommand.SET_RATE_10KHZ);
-               break;
-           case "20 kHz":
-               deviceClient.sendCommand(DeviceCommand.SET_RATE_20KHZ);
-               break;
-       }
+        switch(freq) {
+            case "1 kHz" -> api.setSampleRate1kHz();
+            case "10 kHz" -> api.setSampleRate10kHz();
+            case "20 kHz" -> api.setSampleRate20kHz();
+        }
     }
 
-    //Listener
-    private final DataListener dataListener = new DataListener() {
-        @Override
-        public void onNewData(SignalResult result) {
-
-            if(FreezeCheck.isSelected()) return; 
-            lastResult = result;
+    // API Callbacks
+    private void onSignalData(SignalData data) {
+        Platform.runLater(() -> {
+            if (FreezeCheck.isSelected()) return;
+            lastSignalData = data;
             newDataAvailable = true;
-        }
+        });
+    }
 
-        @Override
-        public void onError(String message){
-                connectionStatus.setText("Error: " + message);
+    private void onError(String message) {
+        Platform.runLater(() -> {
+            connectionStatus.setText("Error: " + message);
+            connectionStatus.setStyle("-fx-text-fill: red;");
+        });
+    }
+
+    private void onConnectionChange(ConnectionStatus status) {
+        Platform.runLater(() -> {
+            if (status.connected()) {
+                connectionStatus.setText("Połączono");
+                connectionStatus.setStyle("-fx-text-fill: green;");
+            } else {
+                connectionStatus.setText("Nie połączono");
                 connectionStatus.setStyle("-fx-text-fill: red;");
-        }
-    };
+            }
+        });
+    }
 
      //Render loop
     private long lastFrameTime = 0;
@@ -212,76 +221,68 @@ public class MainController{
             } 
         }.start(); 
     }
-        private void renderFrame() { 
-            if (FreezeCheck.isSelected()) { 
-                if (lastResult != null) 
-                    drawAll(lastResult); 
-                return; } 
-                if (!newDataAvailable) return; 
-                newDataAvailable = false; 
-                if (lastResult != null) { 
-                    updateLabels(lastResult); 
-                    drawAll(lastResult); } } 
+    private void renderFrame() { 
+        if (FreezeCheck.isSelected()) { 
+            if (lastSignalData != null) 
+                drawAll(lastSignalData); 
+            return; 
+        } 
+        if (!newDataAvailable) return; 
+        newDataAvailable = false; 
+        if (lastSignalData != null) { 
+            updateLabels(lastSignalData); 
+            drawAll(lastSignalData); 
+        } 
+    } 
                     
-        private void drawAll(SignalResult result) { 
-        
-            timeRenderer.draw( oscilloscopeCanvas.getGraphicsContext2D(), 
-            result.timeDomainData(), timeMin, timeMax, 
+    private void drawAll(SignalData data) { 
+        timeRenderer.draw(
+            oscilloscopeCanvas.getGraphicsContext2D(), 
+            data.timeDomainData(), 
+            timeMin, timeMax, 
             oscilloscopeCanvas.getWidth(), 
             oscilloscopeCanvas.getHeight(), 
-            FreezeCheck.isSelected() && cursorActive, cursorX, cursorY ); 
-            
-            if (FFTCheck.isSelected() && fftCanvas.isVisible()) { 
-                fftRenderer.draw( fftCanvas.getGraphicsContext2D(), 
-                result.freqDomainData(), 
+            FreezeCheck.isSelected() && cursorActive, cursorX, cursorY
+        ); 
+        
+        if (FFTCheck.isSelected() && fftCanvas.isVisible()) { 
+            fftRenderer.draw(
+                fftCanvas.getGraphicsContext2D(), 
+                data.freqDomainData(), 
                 fftMax, 
-                getSamplingRate(), 
+                api.getCurrentSampleRate(), 
                 fftCanvas.getWidth(), 
-                fftCanvas.getHeight() ); 
-            } 
+                fftCanvas.getHeight()
+            ); 
         } 
-        
-        //Autoscaling
-        @FXML void autoscaling() { 
-            if (!isRunning) { 
-                autoCheck.setSelected(false); 
-                return; } 
-                if (autoCheck.isSelected() && lastResult != null) { 
-                    double[] scaled = autoscaler.scaleTime(lastResult.timeDomainData()); 
-                    timeMin = scaled[0]; timeMax = scaled[1]; 
-                    fftMax = autoscaler.scaleFFT(lastResult.freqDomainData()); 
-                } else { 
-                    timeMin = 0.0; 
-                    timeMax = 5.0; 
-                    fftMax = 5.0; 
-                }
-             }
-
-    //Labels
-    private void updateLabels(SignalResult result) {
-        double[] samples = result.timeDomainData(); 
-        double max = Double.NEGATIVE_INFINITY; 
-        double min = Double.POSITIVE_INFINITY; 
-        double sumSq = 0; 
-        
-        for (double v : samples) { 
-            if (v > max) max = v; 
-            if (v < min) min = v; 
-            sumSq += v * v; } 
-            
-        double rms = Math.sqrt(sumSq / samples.length); 
-
-        Vmax.setText(String.format("Vmax: %.2f V", max)); 
-        Vmin.setText(String.format("Vmin: %.2f V", min)); 
-        Vrms.setText(String.format("Vrms: %.2f V", rms));
+    } 
+    
+    //Autoscaling
+    @FXML 
+    void autoscaling() { 
+        if (!isRunning) { 
+            autoCheck.setSelected(false); 
+            return; 
+        } 
+        if (autoCheck.isSelected() && lastSignalData != null) { 
+            double[] scaled = autoscaler.scaleTime(lastSignalData.timeDomainData()); 
+            timeMin = scaled[0]; 
+            timeMax = scaled[1]; 
+            fftMax = autoscaler.scaleFFT(lastSignalData.freqDomainData()); 
+        } else { 
+            timeMin = 0.0; 
+            timeMax = 5.0; 
+            fftMax = 5.0; 
+        }
     }
 
-    private double getSamplingRate() { 
-        return switch (samplingFreq.getValue()) { 
-            case "1 kHz" -> 1000.0; 
-            case "10 kHz" -> 10000.0; 
-            case "20 kHz" -> 20000.0; 
-            default -> 1000.0; }; }
+    //Labels - now uses pre-computed statistics from API
+    private void updateLabels(SignalData data) {
+        SignalStatistics stats = data.statistics();
+        Vmax.setText(String.format("Vmax: %.2f V", stats.maxVoltage())); 
+        Vmin.setText(String.format("Vmin: %.2f V", stats.minVoltage())); 
+        Vrms.setText(String.format("Vrms: %.2f V", stats.rmsVoltage()));
+    }
    
     //FFT Visualization
     @FXML
@@ -292,9 +293,8 @@ public class MainController{
             splitPane.setDividerPositions(0.5);
             splitPane.requestLayout();
 
-            if(lastResult != null)
-            {
-              drawAll(lastResult);
+            if(lastSignalData != null) {
+                drawAll(lastSignalData);
             }
         } else {
             fftCanvas.setVisible(false);
@@ -307,6 +307,14 @@ public class MainController{
     private void clearCanvas(Canvas canvas) {
         GraphicsContext gc = canvas.getGraphicsContext2D();
         gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
+    }
+
+    /**
+     * Shuts down the API gracefully.
+     * Should be called when the application is closing.
+     */
+    public void shutdown() {
+        api.shutdown();
     }
 }
 
