@@ -7,6 +7,7 @@ import pl.polsl.rtsa.hardware.DeviceClient;
 import pl.polsl.rtsa.hardware.RealDeviceClient;
 import pl.polsl.rtsa.model.DeviceCommand;
 import pl.polsl.rtsa.model.SignalResult;
+import pl.polsl.rtsa.service.SignalProcessingService;
 
 import java.util.List;
 
@@ -20,6 +21,7 @@ import java.util.List;
 public class ConsoleTester {
 
     private static final Logger logger = LoggerFactory.getLogger(ConsoleTester.class);
+    private static final SignalProcessingService dspService = new SignalProcessingService();
 
     /**
      * Main entry point for the diagnostic tool.
@@ -52,7 +54,7 @@ public class ConsoleTester {
         client.addListener(new DataListener() {
             @Override
             public void onNewData(SignalResult result) {
-                double rms = calculateRMS(result.timeDomainData());
+                double rms = dspService.calculateRMS(result.timeDomainData());
                 
                 // Calculate Dominant Frequency
                 double[] freqData = result.freqDomainData();
@@ -152,20 +154,5 @@ public class ConsoleTester {
 
         logger.info("=== Test Finished ===");
         System.exit(0);
-    }
-
-    /**
-     * Calculates the Root Mean Square (RMS) of the signal data.
-     *
-     * @param data The time-domain signal data.
-     * @return The calculated RMS value.
-     */
-    private static double calculateRMS(double[] data) {
-        if (data == null || data.length == 0) return 0.0;
-        double sum = 0;
-        for (double v : data) {
-            sum += v * v;
-        }
-        return Math.sqrt(sum / data.length);
     }
 }

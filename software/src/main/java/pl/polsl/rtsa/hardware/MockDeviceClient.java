@@ -2,9 +2,8 @@ package pl.polsl.rtsa.hardware;
 
 import pl.polsl.rtsa.model.DeviceCommand;
 import pl.polsl.rtsa.model.SignalResult;
+import pl.polsl.rtsa.service.SignalProcessingService;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -13,8 +12,9 @@ public class MockDeviceClient implements DeviceClient {
 
     private final List<DataListener> listeners = new CopyOnWriteArrayList<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private final SignalProcessingService dspService = new SignalProcessingService();
     private Thread generatorThread;
-    private double sampleRate = 1000.0;
+    private volatile double sampleRate = 1000.0;
 
     @Override
     public boolean connect(String port) {
@@ -58,27 +58,31 @@ public class MockDeviceClient implements DeviceClient {
     }
 
     private void startGenerating() {
-        if (running.get()) return;
+        if (running.get())
+            return;
         running.set(true);
         generatorThread = new Thread(() -> {
             double t = 0;
             while (running.get()) {
                 try {
+                    // Capture current sample rate for this iteration
+                    double currentRate = sampleRate;
+
                     // Simulate buffer filling time (approx)
-                    long sleepTime = (long) ((1024.0 / sampleRate) * 1000);
+                    long sleepTime = (long) ((1024.0 / currentRate) * 1000);
                     Thread.sleep(Math.max(10, sleepTime));
 
                     double[] timeData = new double[1024];
                     for (int i = 0; i < 1024; i++) {
                         // Generate 50Hz sine wave + noise
                         timeData[i] = 2.5 + 2.0 * Math.sin(2 * Math.PI * 50 * t) + (Math.random() - 0.5) * 0.2;
-                        t += 1.0 / sampleRate;
+                        t += 1.0 / currentRate;
                     }
 
-                    // Fake FFT data (just zeros for now or simple calc)
-                    double[] freqData = new double[513]; 
-                    
-                    SignalResult result = new SignalResult(timeData, freqData, sampleRate);
+                    // Compute real FFT from time-domain data
+                    double[] freqData = dspService.computeFFT(timeData);
+
+                    SignalResult result = new SignalResult(timeData, freqData, currentRate);
                     for (DataListener l : listeners) {
                         l.onNewData(result);
                     }

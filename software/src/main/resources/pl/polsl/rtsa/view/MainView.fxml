@@ -2,34 +2,55 @@
 
 <?import javafx.scene.canvas.Canvas?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
+<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.VBox?>
-<?import javafx.scene.layout.StackPane?>
 
-<BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" 
-            fx:controller="pl.polsl.rtsa.controller.MainController"
-            prefHeight="600.0" prefWidth="800.0">
-
-    <center>
-        <StackPane style="-fx-background-color: black; -fx-padding: 10;">
-            <Canvas fx:id="oscilloscopeCanvas" width="600" height="400" />
-        </StackPane>
-    </center>
+<BorderPane prefHeight="600.0" prefWidth="800.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="pl.polsl.rtsa.controller.MainController">
 
     <right>
         <VBox spacing="10" style="-fx-padding: 10; -fx-background-color: #f4f4f4;">
-            <Label text="Ustawienia Portu" style="-fx-font-weight: bold;"/>
+            <Label style="-fx-font-weight: bold;" text="Ustawienia Portu" />
             
-            <ComboBox fx:id="portComboBox" promptText="Wybierz port COM" prefWidth="150.0"/>
+            <ComboBox fx:id="portComboBox" prefWidth="150.0" promptText="Wybierz port COM" />
             
-            <Button fx:id="connectButton" text="Połącz" prefWidth="150.0" onAction="#handleConnect"/>
+            <Button fx:id="connectButton" onAction="#handleConnect" prefWidth="150.0" text="Połącz" />
+         <Label fx:id="connectionStatus" prefHeight="18.0" prefWidth="150.0" text="Status połączenia" />
+         <Label style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Częstotliwość próbkowania" />
+         <ComboBox fx:id="samplingFreq" onAction="#changeSamplingFreq" prefWidth="150.0" />
             
-            <Label text="Sterowanie" style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;"/>
-            <Button text="Start Analizy" prefWidth="150.0"/>
-            <Button text="Stop" prefWidth="150.0"/>
+            <Label prefHeight="38.0" prefWidth="88.0" style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Sterowanie" />
+         <ToggleButton fx:id="toggleButtonStart" mnemonicParsing="false" onAction="#handleStart" prefHeight="26.0" prefWidth="147.0" text="Start" textAlignment="CENTER" />
+         <Label style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Właściwości sygnału" />
+         <Label fx:id="Vrms" text="RMS [V]" />
+         <Label fx:id="Vmax" text="Max [V]" />
+         <Label fx:id="Vmin" text="Min [V]" />
+         <Label style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Wizualizacja sygnału" />
+         <CheckBox fx:id="FFTCheck" mnemonicParsing="false" onAction="#FFTVisualization" text="Pokaż FFT" />
+         <CheckBox fx:id="FreezeCheck" mnemonicParsing="false" text="Zatrzymaj sygnał (freeze)" />
+         <CheckBox fx:id="autoCheck" mnemonicParsing="false" onAction="#autoscaling" text="Autoskalowanie" />
         </VBox>
     </right>
+   <center>
+      <SplitPane fx:id="splitPane" dividerPositions="0.5" orientation="VERTICAL" BorderPane.alignment="CENTER">
+        <items>
+          <AnchorPane fx:id="timePane" minHeight="0.0" minWidth="0.0">
+               <children>
+                  <Canvas fx:id="oscilloscopeCanvas" style="-fx-background-color: black;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+               </children>
+            </AnchorPane>
+          <AnchorPane fx:id="fftPane" minHeight="0.0" minWidth="0.0">
+               <children>
+                  <Canvas fx:id="fftCanvas" style="-fx-background-color: black;" visible="false" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+               </children>
+            </AnchorPane>
+        </items>
+      </SplitPane>
+   </center>
 
 </BorderPane>
