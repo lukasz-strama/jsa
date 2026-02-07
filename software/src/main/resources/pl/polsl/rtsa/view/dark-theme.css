@@ -1,0 +1,218 @@
+/* =========================================================
+   JSignalAnalysis – Dark Theme
+   ========================================================= */
+
+/* --- Root --- */
+.root {
+    -fx-base: #2b2b3d;
+    -fx-background: #1e1e2e;
+    -fx-control-inner-background: #2b2b3d;
+    -fx-accent: #7c3aed;
+    -fx-focus-color: #7c3aed;
+    -fx-faint-focus-color: transparent;
+    -fx-font-size: 12px;
+}
+
+/* --- Settings panel --- */
+.settings-panel {
+    -fx-background-color: #252538;
+    -fx-border-color: #3a3a5c;
+    -fx-border-width: 0 0 0 1;
+}
+
+.section-title {
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+    -fx-text-fill: #b8b8d0;
+    -fx-padding: 8 0 2 0;
+}
+
+.stat-label {
+    -fx-font-family: "Monospaced";
+    -fx-font-size: 12px;
+    -fx-text-fill: #22d3ee;
+}
+
+.status-label {
+    -fx-font-size: 11px;
+}
+
+/* --- Buttons --- */
+.action-button {
+    -fx-background-color: #4338ca;
+    -fx-text-fill: white;
+    -fx-background-radius: 4;
+    -fx-cursor: hand;
+}
+
+.action-button:hover {
+    -fx-background-color: #5b50e6;
+}
+
+.start-button {
+    -fx-background-color: #059669;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 4;
+    -fx-cursor: hand;
+}
+
+.start-button:hover {
+    -fx-background-color: #10b981;
+}
+
+.start-button:selected {
+    -fx-background-color: #dc2626;
+}
+
+.start-button:selected:hover {
+    -fx-background-color: #ef4444;
+}
+
+/* --- Zoom bar below each canvas --- */
+.zoom-bar {
+    -fx-background-color: #1a1a2e;
+    -fx-border-color: #3a3a5c;
+    -fx-border-width: 1 0 0 0;
+}
+
+.zoom-label {
+    -fx-text-fill: #8888aa;
+    -fx-font-size: 11px;
+}
+
+.zoom-value {
+    -fx-text-fill: #22d3ee;
+    -fx-font-family: "Monospaced";
+    -fx-font-size: 11px;
+}
+
+/* --- Sliders --- */
+.slider .track {
+    -fx-background-color: #3a3a5c;
+    -fx-background-radius: 3;
+    -fx-pref-height: 4;
+}
+
+.slider .thumb {
+    -fx-background-color: #7c3aed;
+    -fx-background-radius: 8;
+    -fx-pref-width: 14;
+    -fx-pref-height: 14;
+}
+
+.slider .thumb:hover {
+    -fx-background-color: #8b5cf6;
+}
+
+.slider .axis {
+    -fx-tick-label-fill: #666688;
+}
+
+/* --- ComboBox --- */
+.combo-box {
+    -fx-background-color: #2b2b3d;
+    -fx-border-color: #3a3a5c;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+
+.combo-box .list-cell {
+    -fx-text-fill: #d0d0e0;
+    -fx-background-color: transparent;
+}
+
+.combo-box .arrow-button {
+    -fx-background-color: transparent;
+}
+
+.combo-box .arrow {
+    -fx-background-color: #8888aa;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: #2b2b3d;
+    -fx-border-color: #3a3a5c;
+}
+
+.combo-box-popup .list-cell {
+    -fx-text-fill: #d0d0e0;
+    -fx-background-color: #2b2b3d;
+}
+
+.combo-box-popup .list-cell:hover {
+    -fx-background-color: #3a3a5c;
+}
+
+/* --- CheckBox --- */
+.check-box {
+    -fx-text-fill: #d0d0e0;
+    -fx-font-size: 12px;
+}
+
+.check-box .box {
+    -fx-background-color: #2b2b3d;
+    -fx-border-color: #3a3a5c;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
+
+.check-box:selected .box {
+    -fx-background-color: #7c3aed;
+    -fx-border-color: #7c3aed;
+}
+
+.check-box:selected .mark {
+    -fx-background-color: white;
+}
+
+/* --- ToggleButton --- */
+.toggle-button {
+    -fx-text-fill: white;
+}
+
+/* --- Separator --- */
+.separator .line {
+    -fx-border-color: #3a3a5c;
+    -fx-border-width: 1 0 0 0;
+}
+
+/* --- General labels --- */
+.label {
+    -fx-text-fill: #d0d0e0;
+}
+
+/* --- ScrollBar (if needed) --- */
+.scroll-bar {
+    -fx-background-color: #1a1a2e;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #3a3a5c;
+    -fx-background-radius: 4;
+}
+
+.scroll-bar .track {
+    -fx-background-color: #1a1a2e;
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+/* --- ScrollPane for the settings panel --- */
+.scroll-pane {
+    -fx-background: #252538;
+    -fx-background-color: #252538;
+    -fx-border-color: transparent;
+}
+
+.scroll-pane .viewport {
+    -fx-background-color: #252538;
+}
+
+.scroll-pane>.corner {
+    -fx-background-color: #252538;
+}

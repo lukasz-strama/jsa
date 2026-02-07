@@ -1,56 +1,155 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import javafx.geometry.Insets?>
 <?import javafx.scene.canvas.Canvas?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.CheckBox?>
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
-<?import javafx.scene.control.SplitPane?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.Slider?>
 <?import javafx.scene.control.ToggleButton?>
-<?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.Priority?>
 <?import javafx.scene.layout.VBox?>
 
-<BorderPane prefHeight="600.0" prefWidth="800.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="pl.polsl.rtsa.controller.MainController">
+<BorderPane prefHeight="700.0" prefWidth="1100.0"
+            xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="pl.polsl.rtsa.controller.MainController">
 
-    <right>
-        <VBox spacing="10" style="-fx-padding: 10; -fx-background-color: #f4f4f4;">
-            <Label style="-fx-font-weight: bold;" text="Ustawienia Portu" />
-            
-            <ComboBox fx:id="portComboBox" prefWidth="150.0" promptText="Wybierz port COM" />
-            
-            <Button fx:id="connectButton" onAction="#handleConnect" prefWidth="150.0" text="Połącz" />
-         <Label fx:id="connectionStatus" prefHeight="18.0" prefWidth="150.0" text="Status połączenia" />
-         <Label style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Częstotliwość próbkowania" />
-         <ComboBox fx:id="samplingFreq" onAction="#changeSamplingFreq" prefWidth="150.0" />
-            
-            <Label prefHeight="38.0" prefWidth="88.0" style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Sterowanie" />
-         <ToggleButton fx:id="toggleButtonStart" mnemonicParsing="false" onAction="#handleStart" prefHeight="26.0" prefWidth="147.0" text="Start" textAlignment="CENTER" />
-         <Label style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Właściwości sygnału" />
-         <Label fx:id="Vrms" text="RMS [V]" />
-         <Label fx:id="Vmax" text="Max [V]" />
-         <Label fx:id="Vmin" text="Min [V]" />
-         <Label style="-fx-font-weight: bold; -fx-padding: 20 0 0 0;" text="Wizualizacja sygnału" />
-         <CheckBox fx:id="FFTCheck" mnemonicParsing="false" onAction="#FFTVisualization" text="Pokaż FFT" />
-         <CheckBox fx:id="FreezeCheck" mnemonicParsing="false" text="Zatrzymaj sygnał (freeze)" />
-         <CheckBox fx:id="autoCheck" mnemonicParsing="false" onAction="#autoscaling" text="Autoskalowanie" />
+    <!-- ===== CENTER: Plot area ===== -->
+    <center>
+        <VBox fx:id="plotArea" style="-fx-background-color: #1a1a2e;">
+
+            <!-- Time Domain — always visible -->
+            <VBox fx:id="timeSection" VBox.vgrow="ALWAYS" minHeight="150">
+                <!-- Canvas wrapper: Pane lets us manually track size -->
+                <Pane fx:id="timeContainer" VBox.vgrow="ALWAYS"
+                      minHeight="100" prefHeight="300"
+                      style="-fx-background-color: #1a1a2e;">
+                    <Canvas fx:id="oscilloscopeCanvas"/>
+                </Pane>
+                <!-- Zoom bar -->
+                <HBox alignment="CENTER_LEFT" spacing="8" styleClass="zoom-bar"
+                      minHeight="30" maxHeight="30" prefHeight="30">
+                    <padding>
+                        <Insets top="4" bottom="4" left="10" right="10"/>
+                    </padding>
+                    <Label text="Zoom X:" styleClass="zoom-label"/>
+                    <Slider fx:id="timeZoomX" min="1.0" max="20.0" value="1.0"
+                            blockIncrement="0.5" majorTickUnit="5"
+                            showTickMarks="true" prefWidth="120"/>
+                    <Label fx:id="timeZoomXLabel" text="1.0x" styleClass="zoom-value"
+                           prefWidth="38"/>
+                    <Separator orientation="VERTICAL" prefHeight="18"/>
+                    <Label text="Zoom Y:" styleClass="zoom-label"/>
+                    <Slider fx:id="timeZoomY" min="1.0" max="10.0" value="1.0"
+                            blockIncrement="0.5" majorTickUnit="2"
+                            showTickMarks="true" prefWidth="120"/>
+                    <Label fx:id="timeZoomYLabel" text="1.0x" styleClass="zoom-value"
+                           prefWidth="38"/>
+                </HBox>
+            </VBox>
+
+            <!-- FFT Domain — hidden until toggled -->
+            <VBox fx:id="fftSection" VBox.vgrow="ALWAYS" minHeight="150"
+                  visible="false" managed="false">
+                <Pane fx:id="fftContainer" VBox.vgrow="ALWAYS"
+                      minHeight="100" prefHeight="300"
+                      style="-fx-background-color: #1a1a2e;">
+                    <Canvas fx:id="fftCanvas"/>
+                </Pane>
+                <HBox alignment="CENTER_LEFT" spacing="8" styleClass="zoom-bar"
+                      minHeight="30" maxHeight="30" prefHeight="30">
+                    <padding>
+                        <Insets top="4" bottom="4" left="10" right="10"/>
+                    </padding>
+                    <Label text="Zoom X:" styleClass="zoom-label"/>
+                    <Slider fx:id="fftZoomX" min="1.0" max="20.0" value="1.0"
+                            blockIncrement="0.5" majorTickUnit="5"
+                            showTickMarks="true" prefWidth="120"/>
+                    <Label fx:id="fftZoomXLabel" text="1.0x" styleClass="zoom-value"
+                           prefWidth="38"/>
+                    <Separator orientation="VERTICAL" prefHeight="18"/>
+                    <Label text="Zoom Y:" styleClass="zoom-label"/>
+                    <Slider fx:id="fftZoomY" min="1.0" max="10.0" value="1.0"
+                            blockIncrement="0.5" majorTickUnit="2"
+                            showTickMarks="true" prefWidth="120"/>
+                    <Label fx:id="fftZoomYLabel" text="1.0x" styleClass="zoom-value"
+                           prefWidth="38"/>
+                </HBox>
+            </VBox>
+
         </VBox>
+    </center>
+
+    <!-- ===== RIGHT: Settings panel (ScrollPane prevents disappearing) ===== -->
+    <right>
+        <ScrollPane fitToWidth="true" hbarPolicy="NEVER" vbarPolicy="AS_NEEDED"
+                    minWidth="195" prefWidth="195" maxWidth="220"
+                    style="-fx-background: #252538; -fx-background-color: #252538;">
+            <VBox spacing="6" styleClass="settings-panel" prefWidth="185">
+                <padding>
+                    <Insets top="12" right="10" bottom="12" left="10"/>
+                </padding>
+
+                <Label text="Ustawienia Portu" styleClass="section-title"/>
+                <ComboBox fx:id="portComboBox" maxWidth="Infinity"
+                          promptText="Wybierz port COM"/>
+                <Button fx:id="connectButton" onAction="#handleConnect"
+                        maxWidth="Infinity" text="Polacz" styleClass="action-button"/>
+                <Label fx:id="connectionStatus" text="Nie polaczono"
+                       styleClass="status-label"/>
+
+                <Separator/>
+
+                <Label text="Czestotliwosc probkowania" styleClass="section-title"/>
+                <ComboBox fx:id="samplingFreq" onAction="#changeSamplingFreq"
+                          maxWidth="Infinity"/>
+
+                <Separator/>
+
+                <Label text="Sterowanie" styleClass="section-title"/>
+                <ToggleButton fx:id="toggleButtonStart" onAction="#handleStart"
+                              maxWidth="Infinity" text="Start"
+                              styleClass="start-button"/>
+
+                <Separator/>
+
+                <Label text="Wlasciwosci sygnalu" styleClass="section-title"/>
+                <Label fx:id="Vrms"              text="RMS: -- V"  styleClass="stat-label"/>
+                <Label fx:id="Vmax"              text="Max: -- V"  styleClass="stat-label"/>
+                <Label fx:id="Vmin"              text="Min: -- V"  styleClass="stat-label"/>
+                <Label fx:id="dominantFreqLabel" text="f0:  -- Hz" styleClass="stat-label"/>
+
+                <Separator/>
+
+                <Label text="Wizualizacja" styleClass="section-title"/>
+                <CheckBox fx:id="FFTCheck"    onAction="#FFTVisualization"
+                          text="Pokaz FFT"/>
+                <CheckBox fx:id="FreezeCheck" text="Zatrzymaj (freeze)"/>
+                <CheckBox fx:id="autoCheck"   onAction="#autoscaling"
+                          text="Autoskalowanie" selected="true"/>
+                <CheckBox fx:id="gridCheck"   text="Pokaz siatke" selected="true"/>
+
+                <Separator/>
+
+                <Label text="Trigger" styleClass="section-title"/>
+                <CheckBox fx:id="triggerCheck" text="Wyzwalanie (zbocze narastajace)"/>
+                <HBox spacing="4" alignment="CENTER_LEFT">
+                    <Label text="Prog:" styleClass="zoom-label"/>
+                    <Slider fx:id="triggerLevel" min="-5.0" max="5.0" value="0.0"
+                            blockIncrement="0.1" majorTickUnit="1"
+                            showTickMarks="true" HBox.hgrow="ALWAYS"/>
+                </HBox>
+                <Label fx:id="triggerLevelLabel" text="0.00 V" styleClass="zoom-value"/>
+                <Label fx:id="triggerStatusLabel" text="" styleClass="status-label"/>
+            </VBox>
+        </ScrollPane>
     </right>
-   <center>
-      <SplitPane fx:id="splitPane" dividerPositions="0.5" orientation="VERTICAL" BorderPane.alignment="CENTER">
-        <items>
-          <AnchorPane fx:id="timePane" minHeight="0.0" minWidth="0.0">
-               <children>
-                  <Canvas fx:id="oscilloscopeCanvas" style="-fx-background-color: black;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
-               </children>
-            </AnchorPane>
-          <AnchorPane fx:id="fftPane" minHeight="0.0" minWidth="0.0">
-               <children>
-                  <Canvas fx:id="fftCanvas" style="-fx-background-color: black;" visible="false" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
-               </children>
-            </AnchorPane>
-        </items>
-      </SplitPane>
-   </center>
 
 </BorderPane>

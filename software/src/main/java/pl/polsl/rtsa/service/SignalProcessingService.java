@@ -11,34 +11,37 @@ import java.util.Arrays;
 /**
  * Service responsible for Digital Signal Processing (DSP) operations.
  * <p>
- * Handles voltage conversion, windowing, FFT calculation, and statistical analysis
- * of the signal data. This service is thread-safe and can be shared across multiple threads.
+ * Handles voltage conversion, windowing, FFT calculation, and statistical
+ * analysis
+ * of the signal data. This service is thread-safe and can be shared across
+ * multiple threads.
  * </p>
  * <p>
  * <b>Production Notes:</b>
  * <ul>
- *   <li>FFT instances are cached per-size to avoid reallocation overhead</li>
- *   <li>Zero-padding to 65536 samples provides ~0.015 Hz resolution at 1kHz sample rate</li>
- *   <li>Hamming window is applied by default to reduce spectral leakage</li>
+ * <li>FFT instances are cached per-size to avoid reallocation overhead</li>
+ * <li>Zero-padding to 65536 samples provides ~0.015 Hz resolution at 1kHz
+ * sample rate</li>
+ * <li>Hamming window is applied by default to reduce spectral leakage</li>
  * </ul>
  * </p>
  */
 public class SignalProcessingService {
 
     private static final Logger logger = LoggerFactory.getLogger(SignalProcessingService.class);
-    
+
     /** Minimum FFT size for adequate frequency resolution */
     private static final int MIN_FFT_SIZE = 65536;
-    
+
     /** Minimum frequency threshold to skip DC leakage (Hz) */
     private static final double MIN_FREQ_THRESHOLD = 2.0;
-    
+
     private final AppConfig config;
-    
+
     // Cache for FFT instance to avoid re-initialization overhead
     private DoubleFFT_1D cachedFFT;
     private int cachedFFTSize = -1;
-    
+
     // Pre-computed window coefficients cache
     private double[] cachedWindow;
     private int cachedWindowSize = -1;
@@ -71,7 +74,7 @@ public class SignalProcessingService {
         }
         double vRef = config.getVRef();
         int adcRes = config.getAdcResolution();
-        
+
         double[] voltageData = new double[rawData.length];
         for (int i = 0; i < rawData.length; i++) {
             voltageData[i] = (rawData[i] * vRef) / adcRes;
@@ -117,17 +120,31 @@ public class SignalProcessingService {
         int n = voltageData.length;
         // Zero-pad to at least MIN_FFT_SIZE to improve peak detection resolution
         int paddedSize = Math.max(n, MIN_FFT_SIZE);
-        
-        // 1. Apply Hamming Window (on a copy to preserve original data)
-        double[] windowedData = Arrays.copyOf(voltageData, n);
-        applyHammingWindow(windowedData);
 
-        // 2. Prepare Padded Buffer
+        // 1. Remove DC offset so the huge 0-Hz component does not leak
+        // into neighbouring bins and confuse the peak-picker (f0).
+        double[] windowedData = Arrays.copyOf(voltageData, n);
+        double mean = 0.0;
+        for (double v : windowedData)
+            mean += v;
+        mean /= n;
+        for (int i = 0; i < n; i++)
+            windowedData[i] -= mean;
+
+        // 2. Apply Hamming Window
+        double[] window = getWindowCoefficients(n);
+        double windowSum = 0.0;
+        for (int i = 0; i < n; i++) {
+            windowedData[i] *= window[i];
+            windowSum += window[i];
+        }
+
+        // 3. Prepare Padded Buffer
         double[] processedData = new double[paddedSize];
         System.arraycopy(windowedData, 0, processedData, 0, n);
         // Remaining elements are 0.0 by default
 
-        // 3. Perform FFT
+        // 4. Perform FFT
         // JTransforms DoubleFFT_1D.realForward computes FFT in-place.
         synchronized (this) {
             if (cachedFFT == null || cachedFFTSize != paddedSize) {
@@ -138,18 +155,20 @@ public class SignalProcessingService {
             cachedFFT.realForward(processedData);
         }
 
-        // 4. Calculate Magnitude
-        // Return N/2 bins
+        // 5. Calculate Magnitude — normalised to voltage amplitude.
+        // Single-sided spectrum: multiply by 2 / windowSum so the
+        // peak value equals the real signal amplitude (in V).
         double[] magnitude = new double[paddedSize / 2];
+        double normFactor = 2.0 / windowSum;
 
-        // DC Component (Index 0)
-        magnitude[0] = Math.abs(processedData[0]);
+        // DC Component (Index 0) — no doubling
+        magnitude[0] = Math.abs(processedData[0]) / windowSum;
 
         // AC Components
         for (int k = 1; k < paddedSize / 2; k++) {
             double re = processedData[2 * k];
             double im = processedData[2 * k + 1];
-            magnitude[k] = Math.sqrt(re * re + im * im);
+            magnitude[k] = Math.sqrt(re * re + im * im) * normFactor;
         }
 
         logger.debug("FFT computed. Input: {}, Padded: {}, Spectrum: {}", n, paddedSize, magnitude.length);
@@ -166,7 +185,8 @@ public class SignalProcessingService {
      */
     private void applyHammingWindow(double[] data) {
         int n = data.length;
-        if (n <= 1) return;
+        if (n <= 1)
+            return;
 
         // Use cached window if available
         double[] window = getWindowCoefficients(n);
@@ -197,9 +217,9 @@ public class SignalProcessingService {
     /**
      * Computes comprehensive signal statistics.
      *
-     * @param voltageData   Time-domain voltage samples.
-     * @param freqData      Frequency-domain magnitude data.
-     * @param sampleRate    Sampling rate in Hz.
+     * @param voltageData Time-domain voltage samples.
+     * @param freqData    Frequency-domain magnitude data.
+     * @param sampleRate  Sampling rate in Hz.
      * @return SignalStatistics containing all computed metrics.
      */
     public SignalStatistics computeStatistics(double[] voltageData, double[] freqData, double sampleRate) {
@@ -214,8 +234,10 @@ public class SignalProcessingService {
         double sumSquares = 0.0;
 
         for (double v : voltageData) {
-            if (v < min) min = v;
-            if (v > max) max = v;
+            if (v < min)
+                min = v;
+            if (v > max)
+                max = v;
             sum += v;
             sumSquares += v * v;
         }
@@ -231,7 +253,7 @@ public class SignalProcessingService {
         if (freqData != null && freqData.length > 0 && sampleRate > 0) {
             int fftSize = freqData.length * 2;
             double binWidth = sampleRate / fftSize;
-            
+
             // Skip low-frequency bins to avoid DC and 1/f noise
             int startBin = Math.max(1, (int) (MIN_FREQ_THRESHOLD / binWidth));
 
@@ -265,7 +287,7 @@ public class SignalProcessingService {
         double[] freqAxis = new double[fftBinCount];
         int fftSize = fftBinCount * 2;
         double binWidth = sampleRate / fftSize;
-        
+
         for (int i = 0; i < fftBinCount; i++) {
             freqAxis[i] = i * binWidth;
         }
@@ -275,8 +297,8 @@ public class SignalProcessingService {
     /**
      * Converts magnitude to decibels (dB) with floor limiting.
      *
-     * @param magnitude    Linear magnitude values.
-     * @param floorDb      Minimum dB value (noise floor).
+     * @param magnitude Linear magnitude values.
+     * @param floorDb   Minimum dB value (noise floor).
      * @return Array of magnitude values in dB.
      */
     public double[] convertToDecibels(double[] magnitude, double floorDb) {
@@ -311,7 +333,8 @@ public class SignalProcessingService {
 
         double max = 0.0;
         for (double m : magnitude) {
-            if (m > max) max = m;
+            if (m > max)
+                max = m;
         }
 
         if (max == 0.0) {
@@ -379,8 +402,8 @@ public class SignalProcessingService {
     /**
      * Downsamples data for display purposes.
      *
-     * @param data          Input data array.
-     * @param targetPoints  Maximum number of output points.
+     * @param data         Input data array.
+     * @param targetPoints Maximum number of output points.
      * @return Downsampled data preserving min/max envelope.
      */
     public double[] downsampleForDisplay(double[] data, int targetPoints) {
@@ -395,15 +418,17 @@ public class SignalProcessingService {
         for (int i = 0; i < targetPoints; i++) {
             int start = i * samplesPerBucket;
             int end = Math.min(start + samplesPerBucket, data.length);
-            
+
             double min = Double.MAX_VALUE;
             double max = Double.MIN_VALUE;
-            
+
             for (int j = start; j < end; j++) {
-                if (data[j] < min) min = data[j];
-                if (data[j] > max) max = data[j];
+                if (data[j] < min)
+                    min = data[j];
+                if (data[j] > max)
+                    max = data[j];
             }
-            
+
             result[i * 2] = min;
             result[i * 2 + 1] = max;
         }
