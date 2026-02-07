@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSignalAnalysis — Documentation</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --accent-java: #f59e0b;
+            --accent-fw: #2dd4bf;
+            --accent-py: #818cf8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 3rem 1.5rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            font-size: 1rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            max-width: 960px;
+            width: 100%;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            text-decoration: none;
+            color: var(--text);
+            transition: transform 0.15s, border-color 0.15s;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+        }
+
+        .card.java {
+            border-top: 3px solid var(--accent-java);
+        }
+
+        .card.java:hover {
+            border-color: var(--accent-java);
+        }
+
+        .card.fw {
+            border-top: 3px solid var(--accent-fw);
+        }
+
+        .card.fw:hover {
+            border-color: var(--accent-fw);
+        }
+
+        .card.py {
+            border-top: 3px solid var(--accent-py);
+        }
+
+        .card.py:hover {
+            border-color: var(--accent-py);
+        }
+
+        .card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .card .tag {
+            display: inline-block;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        .card.java .tag {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-java);
+        }
+
+        .card.fw .tag {
+            background: rgba(45, 212, 191, 0.15);
+            color: var(--accent-fw);
+        }
+
+        .card.py .tag {
+            background: rgba(129, 140, 248, 0.15);
+            color: var(--accent-py);
+        }
+
+        .card p {
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        footer {
+            margin-top: 3rem;
+            color: var(--muted);
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>📡 JSignalAnalysis</h1>
+    <p class="subtitle">Real-Time FFT Signal Analyzer — Project Documentation</p>
+
+    <div class="cards">
+        <a class="card java" href="javadoc/index.html">
+            <span class="tag">Java · Javadoc</span>
+            <h2>Software API</h2>
+            <p>
+                JavaFX frontend, signal processing service, hardware communication layer,
+                DTOs, and controller documentation.
+            </p>
+        </a>
+
+        <a class="card fw" href="firmware/index.html">
+            <span class="tag">C · Doxygen</span>
+            <h2>Firmware</h2>
+            <p>
+                ATmega328P drivers — ADC, UART (2 Mbps), Timer1 sample-rate generation,
+                GPIO configuration, and the command protocol.
+            </p>
+        </a>
+
+        <a class="card py" href="python/benchmark.html">
+            <span class="tag">Python · Pydoc</span>
+            <h2>Test Suite</h2>
+            <p>
+                Hardware integration tests (UART protocol, packet framing, handshake)
+                and sampling-rate benchmark scripts.
+            </p>
+        </a>
+    </div>
+
+    <footer>
+        Auto-generated on every push to main via GitHub Actions · GitHub Pages
+    </footer>
+</body>
+
+</html>

@@ -87,7 +87,7 @@ jobs:
           # Copy Python docs
           cp -r docs/python_docs _site/python
           # Copy landing page
-          cp docs/index.html _site/index.html
+          cp .github/pages/index.html _site/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
