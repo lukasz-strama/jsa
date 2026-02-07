@@ -77,9 +77,14 @@ jobs:
           mv -f *.html ../docs/python_docs/
 
       # ── Assemble site ──────────────────────────────────────
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
       - name: Assemble documentation site
         run: |
           mkdir -p _site
+          # Disable Jekyll so CSS/JS resources are served as-is
+          touch _site/.nojekyll
           # Copy Javadoc
           cp -r software/target/site/apidocs _site/javadoc
           # Copy Doxygen
