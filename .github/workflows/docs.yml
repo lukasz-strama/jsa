@@ -36,7 +36,11 @@ jobs:
       - name: Generate Javadoc
         run: |
           cd software
-          mvn javadoc:javadoc -Dshow=private -Ddoclint=none -q
+          mvn javadoc:javadoc \
+            -Dshow=private \
+            -Ddoclint=none \
+            -q \
+            -e
 
       # ── Firmware (Doxygen) ──────────────────────────────────
       - name: Install Doxygen
@@ -64,7 +68,7 @@ jobs:
         run: |
           mkdir -p _site
           # Copy Javadoc
-          cp -r software/target/reports/apidocs _site/javadoc
+          cp -r software/target/site/apidocs _site/javadoc
           # Copy Doxygen
           cp -r docs/firmware_docs/html _site/firmware
           # Copy Python docs
