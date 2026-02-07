@@ -20,7 +20,9 @@ public class App extends Application {
         Parent root = loader.load();
         controller = loader.getController();
 
-        scene = new Scene(root, 800, 600);
+        scene = new Scene(root, 1100, 720);
+        scene.getStylesheets().add(
+                getClass().getResource("/pl/polsl/rtsa/view/dark-theme.css").toExternalForm());
 
         stage.setTitle("JSignalAnalysis - Real Time FFT Analyzer");
         stage.setScene(scene);
@@ -33,6 +35,8 @@ public class App extends Application {
             controller.shutdown();
             controller = null;
         }
+        // Force JVM exit – jSerialComm may leave non-daemon native threads alive
+        System.exit(0);
     }
 
     public static void main(String[] args) {

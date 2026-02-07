@@ -35,7 +35,7 @@ public class RealDeviceClient implements DeviceClient {
     private Thread readerThread;
     private double currentSampleRate;
     private final SignalProcessingService dspService = new SignalProcessingService();
-    
+
     // Processing Executor to prevent blocking the reader thread
     private final ExecutorService processingExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "DSP-Worker");
@@ -131,12 +131,12 @@ public class RealDeviceClient implements DeviceClient {
                 serialPort.readBytes(sink, sink.length);
             }
 
-            byte[] cmd = new byte[]{0x3F};
+            byte[] cmd = new byte[] { 0x3F };
             serialPort.writeBytes(cmd, 1);
 
             byte[] buffer = new byte[32];
             int len = serialPort.readBytes(buffer, buffer.length);
-            
+
             if (len > 0) {
                 String response = new String(buffer, 0, len);
                 logger.debug("Handshake response: {}", response);
@@ -162,28 +162,42 @@ public class RealDeviceClient implements DeviceClient {
     public void disconnect() {
         logger.info("Disconnecting...");
         running.set(false);
-        if (readerThread != null) {
-            readerThread.interrupt(); // Interrupt to break any sleep/blocking
+
+        // Close serial port FIRST to unblock any blocking native read
+        if (serialPort != null && serialPort.isOpen()) {
             try {
-                readerThread.join(1000);
+                sendCommand(DeviceCommand.STOP_ACQUISITION);
+            } catch (Exception e) {
+                logger.debug("Error sending stop during disconnect: {}", e.getMessage());
+            }
+            serialPort.closePort();
+        }
+
+        // Now the reader thread should exit quickly since the port is closed
+        if (readerThread != null) {
+            readerThread.interrupt();
+            try {
+                readerThread.join(500);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
-        
-        // Shutdown executor
+
+        // Shutdown executor and wait briefly
         processingExecutor.shutdownNow();
-        
-        if (serialPort != null && serialPort.isOpen()) {
-            sendCommand(DeviceCommand.STOP_ACQUISITION);
-            serialPort.closePort();
+        try {
+            processingExecutor.awaitTermination(500, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
+
         logger.info("Disconnected");
     }
 
     @Override
     public void sendCommand(DeviceCommand cmd) {
-        if (serialPort == null || !serialPort.isOpen()) return;
+        if (serialPort == null || !serialPort.isOpen())
+            return;
 
         logger.debug("Sending command: {}", cmd);
         byte byteCmd = 0;
@@ -206,7 +220,7 @@ public class RealDeviceClient implements DeviceClient {
                 recalculateSamplesPerFrame();
             }
         }
-        serialPort.writeBytes(new byte[]{byteCmd}, 1);
+        serialPort.writeBytes(new byte[] { byteCmd }, 1);
     }
 
     @Override
@@ -333,10 +347,9 @@ public class RealDeviceClient implements DeviceClient {
 
         // 3. Create Result
         SignalResult result = new SignalResult(
-            voltageData,
-            fftData,
-            currentSampleRate
-        );
+                voltageData,
+                fftData,
+                currentSampleRate);
 
         // 4. Notify Listeners
         notifyListeners(result);
