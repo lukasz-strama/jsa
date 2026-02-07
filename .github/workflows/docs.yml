@@ -36,11 +36,24 @@ jobs:
       - name: Generate Javadoc
         run: |
           cd software
-          mvn javadoc:javadoc \
-            -Dshow=private \
-            -Ddoclint=none \
-            -q \
-            -e
+          # Resolve dependencies to local repo and build classpath
+          mvn dependency:resolve dependency:build-classpath \
+            -Dmdep.outputFile=target/cp.txt -q
+          CP=$(cat target/cp.txt)
+          # Collect all source files (skip module-info.java to avoid named/unnamed conflict)
+          find src/main/java/pl -name "*.java" > target/srcfiles.txt
+          mkdir -p target/site/apidocs
+          javadoc \
+            -d target/site/apidocs \
+            -classpath "$CP" \
+            -Xdoclint:none \
+            -private \
+            -noqualifier all \
+            -windowtitle "JSignalAnalysis API" \
+            -doctitle "JSignalAnalysis — Java API Documentation" \
+            -header "JSignalAnalysis" \
+            -quiet \
+            @target/srcfiles.txt
 
       # ── Firmware (Doxygen) ──────────────────────────────────
       - name: Install Doxygen
