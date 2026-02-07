@@ -6,6 +6,14 @@ import javafx.scene.text.Font;
 
 /**
  * Renders the time-domain oscilloscope view with:
+ * <ul>
+ * <li>Grid lines at "nice" voltage and time intervals via
+ * {@link GridCalculator}</li>
+ * <li>Voltage (Y) and time (X) axis labels</li>
+ * <li>Zoom-aware rendering via explicit visible-range parameters</li>
+ * <li>Optional trigger threshold line</li>
+ * <li>Cursor overlay with snap-to-signal support via {@link CursorOverlay}</li>
+ * </ul>
  */
 public class TimeDomainRen {
 
@@ -34,6 +42,11 @@ public class TimeDomainRen {
 
     private boolean showGrid = true;
 
+    /**
+     * Toggles grid-line rendering.
+     *
+     * @param show {@code true} to draw grid lines, {@code false} to hide them
+     */
     public void setShowGrid(boolean show) {
         this.showGrid = show;
     }
@@ -157,6 +170,9 @@ public class TimeDomainRen {
     // Internal helpers
     // ================================================================
 
+    /**
+     * Draws voltage (Y) and time (X) grid lines with labels.
+     */
     private void drawGrid(GraphicsContext gc,
             double vMin, double vMax,
             double tStart, double tEnd,
@@ -221,6 +237,7 @@ public class TimeDomainRen {
         }
     }
 
+    /** Draws the plot-area border rectangle. */
     private void drawBorder(GraphicsContext gc, double pw, double ph) {
         gc.setStroke(AXIS_COLOR);
         gc.setLineWidth(1.0);
@@ -228,6 +245,10 @@ public class TimeDomainRen {
         gc.strokeRect(ML, MT, pw, ph);
     }
 
+    /**
+     * Renders the voltage waveform polyline, downsampled to at most
+     * {@link #MAX_POINTS} screen points.
+     */
     private void drawSignal(GraphicsContext gc, double[] samples,
             double vMin, double vMax,
             double tStart, double tEnd,
@@ -287,6 +308,14 @@ public class TimeDomainRen {
         gc.strokePolyline(xBuf, yBuf, target);
     }
 
+    /**
+     * Draws centred placeholder text when no signal data is available.
+     *
+     * @param gc   graphics context
+     * @param pw   plot width (px)
+     * @param ph   plot height (px)
+     * @param text the message to display
+     */
     private void drawPlaceholder(GraphicsContext gc, double pw, double ph, String text) {
         gc.setFill(Color.gray(0.4));
         gc.setFont(Font.font("System", 14));
@@ -294,6 +323,9 @@ public class TimeDomainRen {
         gc.fillText(text, ML + pw / 2 - approxW / 2, MT + ph / 2);
     }
 
+    /**
+     * Clamps {@code v} to the range [{@code lo}, {@code hi}].
+     */
     private static double clamp(double v, double lo, double hi) {
         return Math.max(lo, Math.min(hi, v));
     }

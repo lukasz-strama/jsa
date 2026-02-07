@@ -1,3 +1,8 @@
+/**
+ * @file gpio.h
+ * @brief GPIO initialisation and LED helper interface.
+ */
+
 #ifndef GPIO_H
 #define GPIO_H
 

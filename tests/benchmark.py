@@ -1,3 +1,14 @@
+"""Sampling-rate benchmark for the JSignalAnalysis ATmega328P firmware.
+
+Measures the actual sample throughput at each supported rate (1/10/20 kHz)
+over a configurable duration and reports the deviation from the target.
+
+Usage::
+
+    python benchmark.py                   # auto-detect Arduino port
+    python benchmark.py --port=/dev/ttyACM0
+"""
+
 import serial
 import serial.tools.list_ports
 import time
@@ -33,6 +44,15 @@ def find_arduino_port():
     raise Exception("Could not find Arduino. Please specify port manually using --port")
 
 def run_benchmark():
+    """Execute the sampling-rate benchmark across all configured test cases.
+
+    Steps:
+        1. Detect (or accept) a serial port.
+        2. For each rate in ``TEST_CASES``: set the rate, start acquisition,
+           count received bytes over ``MEASURE_DURATION`` seconds, stop, and
+           compute the actual Hz and error percentage.
+        3. Print a summary table to stdout.
+    """
     # 1. Detect Port
     port = ""
     if len(sys.argv) > 1 and sys.argv[1].startswith("--port="):

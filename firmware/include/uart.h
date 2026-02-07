@@ -1,3 +1,8 @@
+/**
+ * @file uart.h
+ * @brief UART driver interface for ATmega328P (2 Mbps, 8N1).
+ */
+
 #ifndef UART_H
 #define UART_H
 

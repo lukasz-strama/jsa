@@ -56,6 +56,10 @@ public class RealDeviceClient implements DeviceClient {
         recalculateSamplesPerFrame();
     }
 
+    /**
+     * Recalculates {@link #samplesPerFrame} so that UI updates happen at ~30 FPS
+     * for the current sample rate.
+     */
     private void recalculateSamplesPerFrame() {
         // Target 30 FPS
         this.samplesPerFrame = (int) (currentSampleRate / 30.0);
@@ -235,6 +239,9 @@ public class RealDeviceClient implements DeviceClient {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Spawns the daemon reader thread that decodes the serial byte stream.
+     */
     private void startReading() {
         running.set(true);
         readerThread = new Thread(this::readLoop, "Serial-Reader");
@@ -242,6 +249,14 @@ public class RealDeviceClient implements DeviceClient {
         readerThread.start();
     }
 
+    /**
+     * Main read loop — runs on the reader thread.
+     * <p>
+     * Decodes the 2-byte sync protocol (high byte bit 7 = 1, low byte bit 7 = 0)
+     * into 10-bit ADC values and writes them into the ring buffer. Every
+     * {@link #samplesPerFrame} samples, triggers a UI update.
+     * </p>
+     */
     private void readLoop() {
         int bufferSize = ringBuffer.length;
         InputStream in = serialPort.getInputStream();
@@ -295,6 +310,11 @@ public class RealDeviceClient implements DeviceClient {
         }
     }
 
+    /**
+     * Snapshots the most recent samples from the ring buffer and submits
+     * them to the DSP executor for voltage conversion, FFT, and listener
+     * dispatch. Skipped if a previous DSP job is still running.
+     */
     private void updateUI() {
         // If DSP is busy, skip this frame to avoid backpressure on the reader thread
         if (isProcessing.get()) {
@@ -338,6 +358,12 @@ public class RealDeviceClient implements DeviceClient {
         });
     }
 
+    /**
+     * Converts raw ADC data to voltage, computes the FFT, and notifies
+     * all registered listeners with a {@link SignalResult}.
+     *
+     * @param rawData the raw 10-bit ADC values
+     */
     private void processBuffer(int[] rawData) {
         // 1. Convert to Voltage
         double[] voltageData = dspService.convertToVoltage(rawData);
@@ -355,12 +381,22 @@ public class RealDeviceClient implements DeviceClient {
         notifyListeners(result);
     }
 
+    /**
+     * Dispatches a {@link SignalResult} to all registered listeners.
+     *
+     * @param result the processed signal result
+     */
     private void notifyListeners(SignalResult result) {
         for (DataListener l : listeners) {
             l.onNewData(result);
         }
     }
 
+    /**
+     * Dispatches an error message to all registered listeners.
+     *
+     * @param msg the error description
+     */
     private void notifyError(String msg) {
         for (DataListener l : listeners) {
             l.onError(msg);

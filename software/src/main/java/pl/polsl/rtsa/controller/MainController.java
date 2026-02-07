@@ -22,7 +22,20 @@ import pl.polsl.rtsa.api.exception.DeviceException;
 import pl.polsl.rtsa.config.AppConfig;
 
 /**
- * Main UI controller.
+ * Main JavaFX controller for the JSignalAnalysis UI.
+ * <p>
+ * Manages all user interactions (connect, start/stop, zoom, trigger, freeze),
+ * drives the 30 FPS render loop via {@link AnimationTimer}, and bridges
+ * the {@link SignalAnalyzerApi} backend with the canvas-based oscilloscope
+ * and FFT views.
+ * </p>
+ *
+ * <h2>Render Pipeline:</h2>
+ * <ol>
+ * <li>Backend delivers {@link SignalData} via callback (background thread)</li>
+ * <li>Data is posted to the FX thread with {@code Platform.runLater()}</li>
+ * <li>AnimationTimer picks it up at ~30 FPS and redraws both canvases</li>
+ * </ol>
  */
 public class MainController {
 
@@ -135,6 +148,15 @@ public class MainController {
     // Initialization
     // ================================================================
 
+    /**
+     * FXML initialisation hook — called automatically after all @FXML fields
+     * have been injected.
+     * <p>
+     * Wires canvas resize listeners, zoom/trigger slider listeners, populates
+     * the port and sample-rate combo boxes, registers API callbacks, and
+     * starts the render loop.
+     * </p>
+     */
     @FXML
     public void initialize() {
 
@@ -212,6 +234,13 @@ public class MainController {
      * Manually track the container Pane size and resize the Canvas.
      * This avoids the bidirectional layout-feedback loop that binding caused.
      */
+    /**
+     * Binds a {@link Canvas} size to its parent {@link Pane} so the canvas
+     * resizes automatically when the window layout changes.
+     *
+     * @param canvas    the canvas to resize
+     * @param container the parent pane whose dimensions drive the canvas size
+     */
     private void hookCanvasToPane(Canvas canvas, Pane container) {
         container.widthProperty().addListener((obs, o, nv) -> {
             double w = nv.doubleValue();
@@ -233,6 +262,12 @@ public class MainController {
     // Actions
     // ================================================================
 
+    /**
+     * Handles the “Connect” button press — attempts to connect to the
+     * serial port selected in {@link #portComboBox}.
+     *
+     * @param event the originating action event
+     */
     @FXML
     void handleConnect(ActionEvent event) {
         String port = portComboBox.getValue();
@@ -249,6 +284,12 @@ public class MainController {
         }
     }
 
+    /**
+     * Handles the Start/Stop toggle button — starts or stops data acquisition
+     * and updates the button label accordingly.
+     *
+     * @param event the originating action event
+     */
     @FXML
     void handleStart(ActionEvent event) {
         try {
@@ -276,6 +317,12 @@ public class MainController {
         }
     }
 
+    /**
+     * Handles sample-rate combo box changes — sends the appropriate
+     * rate command to the hardware.
+     *
+     * @param event the originating action event
+     */
     @FXML
     void changeSamplingFreq(ActionEvent event) {
         String freq = samplingFreq.getValue();
@@ -292,6 +339,11 @@ public class MainController {
         }
     }
 
+    /**
+     * Toggles the FFT spectrum panel visibility based on the FFT checkbox state.
+     *
+     * @param event the originating action event
+     */
     @FXML
     void FFTVisualization(ActionEvent event) {
         boolean show = FFTCheck.isSelected();
@@ -300,6 +352,10 @@ public class MainController {
         needsRedraw = true;
     }
 
+    /**
+     * Recomputes voltage and magnitude ranges from the current signal data
+     * when the autoscale checkbox is selected.
+     */
     @FXML
     void autoscaling() {
         if (autoCheck.isSelected() && lastSignalData != null) {
@@ -315,6 +371,12 @@ public class MainController {
     // API callbacks (may arrive on background thread)
     // ================================================================
 
+    /**
+     * API data callback — stores the latest signal data for the next render
+     * frame unless the display is frozen.
+     *
+     * @param data the new signal data received from the backend
+     */
     private void onSignalData(SignalData data) {
         Platform.runLater(() -> {
             if (FreezeCheck.isSelected())
@@ -324,6 +386,11 @@ public class MainController {
         });
     }
 
+    /**
+     * API error callback — displays the error message in the status label.
+     *
+     * @param message the error description
+     */
     private void onError(String message) {
         Platform.runLater(() -> {
             connectionStatus.setText("Blad: " + message);
@@ -331,6 +398,11 @@ public class MainController {
         });
     }
 
+    /**
+     * API connection-state callback — updates the status label colour and text.
+     *
+     * @param status the new connection status
+     */
     private void onConnectionChange(ConnectionStatus status) {
         Platform.runLater(() -> {
             if (status.connected()) {
@@ -347,6 +419,10 @@ public class MainController {
     // Render loop
     // ================================================================
 
+    /**
+     * Creates and starts the {@link AnimationTimer} that drives the render loop
+     * at approximately 30 FPS.
+     */
     private void startRenderLoop() {
         animationTimer = new AnimationTimer() {
             @Override
@@ -360,6 +436,13 @@ public class MainController {
         animationTimer.start();
     }
 
+    /**
+     * Renders a single frame — invoked from the {@link AnimationTimer}.
+     * <p>
+     * Handles empty-canvas drawing, frozen/stopped states, autoscaling,
+     * label updates, and delegates to {@link #drawAll(SignalData)}.
+     * </p>
+     */
     private void renderFrame() {
 
         // No data yet → placeholder
@@ -410,6 +493,15 @@ public class MainController {
     // Drawing
     // ================================================================
 
+    /**
+     * Draws the time-domain and (optionally) FFT canvases for the given data.
+     * <p>
+     * Applies zoom, trigger detection, window slicing, and delegates to
+     * {@link TimeDomainRen} and {@link FFTDomainRen}.
+     * </p>
+     *
+     * @param data the signal data to render
+     */
     private void drawAll(SignalData data) {
 
         double w = oscilloscopeCanvas.getWidth();
@@ -564,8 +656,18 @@ public class MainController {
      * Keep trigger slider min/max in sync with actual signal voltage range.
      * If the current trigger level is outside the new range, snap it to midpoint.
      */
+    /**
+     * Whether the trigger slider range has been initialised from autoscale data.
+     */
     private boolean triggerRangeInitialized = false;
 
+    /**
+     * Updates the trigger-level slider's min/max to match the current
+     * autoscaled voltage range.
+     *
+     * @param vMin the current minimum voltage
+     * @param vMax the current maximum voltage
+     */
     private void updateTriggerSliderRange(double vMin, double vMax) {
         double margin = (vMax - vMin) * 0.05;
         double newMin = vMin - margin;
@@ -587,6 +689,12 @@ public class MainController {
         }
     }
 
+    /**
+     * Refreshes the on-screen statistics labels (Vmax, Vmin, RMS, f0) from
+     * the given signal data.
+     *
+     * @param data the signal data whose statistics to display
+     */
     private void updateLabels(SignalData data) {
         SignalStatistics stats = data.statistics();
         Vmax.setText(String.format("Max: %.3f V", stats.maxVoltage()));
@@ -599,6 +707,10 @@ public class MainController {
     // Shutdown
     // ================================================================
 
+    /**
+     * Shuts down the render loop and the backend API.
+     * Called from {@link pl.polsl.rtsa.App#stop()} during application exit.
+     */
     public void shutdown() {
         isRunning = false;
         if (animationTimer != null)

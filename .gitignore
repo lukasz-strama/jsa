@@ -1,6 +1,8 @@
 # Created by https://www.toptal.com/developers/gitignore/api/c,java,intellij,visualstudiocode,python
 # Edit at https://www.toptal.com/developers/gitignore?templates=c,java,intellij,visualstudiocode,python
 
+/docs
+
 ### C ###
 # Prerequisites
 *.d

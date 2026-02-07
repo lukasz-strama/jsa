@@ -100,6 +100,17 @@ public class CursorOverlay {
     // Helpers
     // ================================================================
 
+    /**
+     * Draws a dashed crosshair (horizontal + vertical) through the given point.
+     *
+     * @param gc graphics context
+     * @param x  crosshair centre X (canvas coordinates)
+     * @param y  crosshair centre Y (canvas coordinates)
+     * @param ml left margin (px)
+     * @param mt top margin (px)
+     * @param pw plot width (px)
+     * @param ph plot height (px)
+     */
     private void drawCrosshair(GraphicsContext gc,
             double x, double y,
             double ml, double mt,
@@ -112,6 +123,20 @@ public class CursorOverlay {
         gc.setLineDashes((double[]) null);
     }
 
+    /**
+     * Draws a semi-transparent tooltip box with two text lines, clamped
+     * inside the plot area.
+     *
+     * @param gc    graphics context
+     * @param x     anchor X position
+     * @param y     anchor Y position
+     * @param ml    left margin (px)
+     * @param mt    top margin (px)
+     * @param pw    plot width (px)
+     * @param ph    plot height (px)
+     * @param line1 first text line (e.g. time)
+     * @param line2 second text line (e.g. voltage)
+     */
     private void drawTooltip(GraphicsContext gc,
             double x, double y,
             double ml, double mt,

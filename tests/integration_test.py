@@ -1,3 +1,15 @@
+"""Hardware integration tests for the JSignalAnalysis ATmega328P firmware.
+
+Verifies the UART command protocol, packet framing, value reconstruction,
+handshake integrity, and robustness against invalid input via a live serial
+connection to the device.
+
+Usage::
+
+    python integration_test.py                        # auto-detect port
+    python integration_test.py --port /dev/ttyACM0    # explicit port
+"""
+
 import unittest
 import serial
 import serial.tools.list_ports

@@ -34,6 +34,11 @@ public class FFTDomainRen {
 
     private boolean showGrid = true;
 
+    /**
+     * Toggles grid-line rendering.
+     *
+     * @param show {@code true} to draw grid lines, {@code false} to hide them
+     */
     public void setShowGrid(boolean show) {
         this.showGrid = show;
     }
@@ -113,6 +118,9 @@ public class FFTDomainRen {
     // Internal helpers
     // ================================================================
 
+    /**
+     * Draws magnitude (Y) and frequency (X) grid lines with labels.
+     */
     private void drawGrid(GraphicsContext gc,
             double magMin, double magMax,
             double freqStart, double freqEnd,
@@ -166,6 +174,7 @@ public class FFTDomainRen {
         }
     }
 
+    /** Draws the plot-area border rectangle. */
     private void drawBorder(GraphicsContext gc, double pw, double ph) {
         gc.setStroke(AXIS_COLOR);
         gc.setLineWidth(1.0);
@@ -229,6 +238,14 @@ public class FFTDomainRen {
         gc.strokePolyline(xBuf, yBuf, target);
     }
 
+    /**
+     * Draws centred placeholder text when no FFT data is available.
+     *
+     * @param gc   graphics context
+     * @param pw   plot width (px)
+     * @param ph   plot height (px)
+     * @param text the message to display
+     */
     private void drawPlaceholder(GraphicsContext gc, double pw, double ph, String text) {
         gc.setFill(Color.gray(0.4));
         gc.setFont(Font.font("System", 14));
@@ -236,6 +253,9 @@ public class FFTDomainRen {
         gc.fillText(text, ML + pw / 2 - approxW / 2, MT + ph / 2);
     }
 
+    /**
+     * Clamps {@code v} to the range [{@code lo}, {@code hi}].
+     */
     private static double clamp(double v, double lo, double hi) {
         return Math.max(lo, Math.min(hi, v));
     }

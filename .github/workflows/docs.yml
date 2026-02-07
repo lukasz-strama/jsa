@@ -1,0 +1,93 @@
+name: Generate & Deploy Documentation
+
+on:
+  push:
+    branches: ["master", "main"]
+  pull_request:
+    branches: ["master", "main"]
+
+# Allow only one concurrent deployment, skip in-progress runs on new push
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-docs:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── Java (Javadoc) ──────────────────────────────────────
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Generate Javadoc
+        run: |
+          cd software
+          mvn javadoc:javadoc -Dshow=private -Ddoclint=none -q
+
+      # ── Firmware (Doxygen) ──────────────────────────────────
+      - name: Install Doxygen
+        run: sudo apt-get update && sudo apt-get install -y doxygen
+
+      - name: Generate Doxygen
+        run: |
+          cd firmware
+          doxygen Doxyfile
+
+      # ── Python (pydoc) ─────────────────────────────────────
+      - name: Install Python dependencies
+        run: pip install pyserial
+
+      - name: Generate Python docs
+        run: |
+          cd tests
+          python -m pydoc -w benchmark
+          python -m pydoc -w integration_test || true
+          mkdir -p ../docs/python_docs
+          mv -f *.html ../docs/python_docs/
+
+      # ── Assemble site ──────────────────────────────────────
+      - name: Assemble documentation site
+        run: |
+          mkdir -p _site
+          # Copy Javadoc
+          cp -r software/target/reports/apidocs _site/javadoc
+          # Copy Doxygen
+          cp -r docs/firmware_docs/html _site/firmware
+          # Copy Python docs
+          cp -r docs/python_docs _site/python
+          # Copy landing page
+          cp docs/index.html _site/index.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build-docs
+    # Only deploy on push to main/master (not on PRs)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

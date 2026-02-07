@@ -1,3 +1,19 @@
+/**
+ * JSignalAnalysis — a real-time signal analysis and FFT visualisation tool.
+ * <p>
+ * This module provides:
+ * <ul>
+ * <li>{@code pl.polsl.rtsa} — JavaFX application entry point</li>
+ * <li>{@code pl.polsl.rtsa.api} — public API and DTOs for signal analyser
+ * operations</li>
+ * <li>{@code pl.polsl.rtsa.hardware} — serial device communication layer</li>
+ * <li>{@code pl.polsl.rtsa.service} — DSP services (FFT, statistics,
+ * windowing)</li>
+ * <li>{@code pl.polsl.rtsa.controller} — JavaFX UI controllers and canvas
+ * renderers</li>
+ * <li>{@code pl.polsl.rtsa.config} — application configuration management</li>
+ * </ul>
+ */
 module pl.polsl.rtsa {
     requires javafx.controls;
     requires javafx.fxml;
