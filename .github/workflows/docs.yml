@@ -36,24 +36,25 @@ jobs:
       - name: Generate Javadoc
         run: |
           cd software
-          # Resolve dependencies to local repo and build classpath
+          # Resolve classpath, then filter out JARs that conflict with JTransforms fat-jar
           mvn dependency:resolve dependency:build-classpath \
             -Dmdep.outputFile=target/cp.txt -q
-          CP=$(cat target/cp.txt)
-          # Collect all source files (skip module-info.java to avoid named/unnamed conflict)
-          find src/main/java/pl -name "*.java" > target/srcfiles.txt
+          CP=$(cat target/cp.txt | tr ':' '\n' | grep -v 'commons-math3' | grep -v 'JLargeArrays' | tr '\n' ':')
+          # Symlink source tree so --module-source-path finds the module
+          mkdir -p target/modsrc
+          ln -sfn "$(pwd)/src/main/java" target/modsrc/pl.polsl.rtsa
           mkdir -p target/site/apidocs
           javadoc \
             -d target/site/apidocs \
-            -classpath "$CP" \
+            --module-path "$CP" \
+            --module-source-path target/modsrc \
+            --module pl.polsl.rtsa \
             -Xdoclint:none \
             -private \
-            -noqualifier all \
             -windowtitle "JSignalAnalysis API" \
             -doctitle "JSignalAnalysis — Java API Documentation" \
             -header "JSignalAnalysis" \
-            -quiet \
-            @target/srcfiles.txt
+            -quiet
 
       # ── Firmware (Doxygen) ──────────────────────────────────
       - name: Install Doxygen
